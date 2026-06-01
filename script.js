@@ -8,8 +8,8 @@
 
   /* ====================== MiniMax AI 关键词优化 ====================== */
 
-  // MiniMax API Key（直接写入，请勿提交到 Git）
-  const MINIMAX_API_KEY = 'sk-api-ztZGNnyqQCnbIXQ-ooEg7CI7LCjs5Vrujz1eoJdnQGXOWDoIOjUHfcWfklAIvZbGBzPx4W7Nfq0lKvfbQrxhvIxcrZN_h_7Y-2vStrPAx1boXTRF10BWijA';
+  // MiniMax API Key（服务器注入，勿手动修改）
+  const MINIMAX_API_KEY = 'MINIMAX_API_KEY_PLACEHOLDER';
 
   const SYSTEM_PROMPT = `你是一个学术文献检索助手。你的任务是根据用户输入的研究问题，生成适合在学术数据库（如 Scopus、Web of Science、ERIC）搜索的关键词。
 
