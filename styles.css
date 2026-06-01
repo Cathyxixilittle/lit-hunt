@@ -802,6 +802,161 @@ h2.panel__title.edit-selected {
   flex-shrink: 0;
 }
 
+/* ============================================
+   作业要求上传区
+   ============================================ */
+.upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.upload-section__intro {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+}
+.upload-section__intro p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+/* 拖拽区 */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  background: var(--paper);
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  user-select: none;
+}
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 4%, var(--paper));
+  outline: none;
+}
+.dropzone--drag {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+  border-style: solid;
+}
+.dropzone__icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+.dropzone__text {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.dropzone__sub {
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+  margin: 0;
+}
+.dropzone__link {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 已上传文件列表 */
+.upload-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.upload-list:empty {
+  display: none;
+}
+.upload-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  transition: border-color 0.15s;
+}
+.upload-card:hover {
+  border-color: var(--line-strong);
+}
+.upload-card__icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  border-radius: var(--r-sm);
+}
+.upload-card__info {
+  flex: 1;
+  min-width: 0;
+}
+.upload-card__name {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 2px;
+}
+.upload-card__meta {
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.upload-card__badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.badge--pdf { background: #fde8e8; color: #c0392b; }
+.badge--docx { background: #dbeafe; color: #1d4ed8; }
+.badge--doc { background: #dbeafe; color: #1d4ed8; }
+.badge--txt { background: #f0fdf4; color: #15803d; }
+.upload-card__del {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.upload-card__del:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
 .placeholder {
   display: flex;
   flex-direction: column;

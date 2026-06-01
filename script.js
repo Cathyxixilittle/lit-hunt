@@ -87,13 +87,6 @@
     '算法': 'algorithm',
   };
 
-  const SCOPE = {
-    general: [],
-    empirical: ['case study', 'empirical', 'qualitative', 'quantitative'],
-    theoretical: ['theoretical framework', 'critical theory', 'feminist theory', 'discourse theory'],
-    review: ['systematic review', 'literature review', 'meta-analysis', 'scoping review'],
-  };
-
   const STOPWORDS_EN = new Set([
     'the','and','for','with','from','into','about','between',
     'how','what','why','when','where','which','who','does',
@@ -124,7 +117,7 @@
     return Array.from(out);
   }
 
-  function generateSuggestions(rawText, scope, langs) {
+  function generateSuggestions(rawText, langs) {
     const text = (rawText || '').trim();
     if (!text) return [];
     const out = [];
@@ -133,7 +126,6 @@
     const zhTerms = extractZh(text);
     const enTerms = extractEn(text);
     const translated = zhToEn(text);
-    const scopeExtras = SCOPE[scope] || [];
 
     // 1. 原文（起步）
     if (text.length <= 80) {
@@ -156,21 +148,12 @@
       out.push({ tag: '英文 OR', text: `(${enTerms.slice(0, 4).map(t => `"${t}"`).join(' OR ')})` });
     }
 
-    // 4. 核心词 + 限定
-    const core = (enTerms[0] || translated[0])?.replace(/['"]/g, '');
-    if (core && scopeExtras.length > 0) {
-      out.push({
-        tag: scope === 'review' ? '综述' : scope === 'theoretical' ? '理论' : '实证',
-        text: `"${core}" AND "${scopeExtras[0]}"`,
-      });
-    }
-
-    // 5. 跨语种 fallback
+    // 4. 跨语种 fallback
     if (translated.length === 0 && zhTerms.length > 0 && wantEn) {
       out.push({ tag: '中英', text: `"${zhTerms[0]}" AND "${enTerms[0] || 'Australia'}"` });
     }
 
-    // 6. 年限
+    // 5. 年限
     if (out.length > 0) {
       out.push({
         tag: '筛选',
@@ -260,7 +243,7 @@
   ];
 
   // 简单打分：匹配关键词越多越排前
-  function mockSearch(query, scope) {
+  function mockSearch(query) {
     const q = (query || '').toLowerCase();
     const qTokens = new Set([
       ...extractZh(q),
@@ -282,11 +265,6 @@
         if (paper.keywords.some(k => k.toLowerCase() === t)) score += 2; // 关键词命中加权
       });
 
-      // scope 加权
-      if (scope === 'empirical' && /case study|empirical|qualitative/.test(text)) score += 1;
-      if (scope === 'theoretical' && /theory|framework|critical/.test(text)) score += 1;
-      if (scope === 'review' && /review|meta-analysis/.test(text)) score += 1;
-
       return { ...paper, _score: score };
     });
 
@@ -303,7 +281,6 @@
   const $status = $('#searchStatus');
   const $statusText = $status.querySelector('.searchbox__status-text');
   const $dot = $status.querySelector('.dot');
-  const $chips = $$('.chip[data-scope]');
   const $langChips = $$('.chip[data-lang]');
   const $yearChips = $$('.chip[data-year]');
   const $suggestions = $('#suggestions');
@@ -317,7 +294,6 @@
   const $clearHistory = $('#clearHistory');
   const $toast = $('#toast');
 
-  let currentScope = 'general';
   let currentLangs = ['zh', 'en'];
   let currentYear = '5y';
   let currentSession = null;
@@ -398,8 +374,6 @@
         <div class="history__item-meta">
           <span>${formatTime(it.ts)}</span>
           <span class="sep">·</span>
-          <span>${it.scope}</span>
-          <span class="sep">·</span>
           <span>${it.suggestionCount}kw / ${it.resultCount}res</span>
         </div>
         <button class="history__item-del" data-del="${it.id}" aria-label="删除这条" type="button">×</button>
@@ -414,8 +388,6 @@
         const item = loadHistory().find(x => x.id === id);
         if (!item) return;
         $topic.value = item.query;
-        setScopeChips(item.scope, $chips);
-        currentScope = item.scope;
         currentSession = id;
         markActiveHistory(id);
         doSearch(false); // 不重新记录
@@ -483,10 +455,6 @@
     $history.querySelectorAll('.history__item').forEach(el => {
       el.classList.toggle('is-active', el.dataset.id === id);
     });
-  }
-
-  function setScopeChips(scope, $nodes) {
-    $nodes.forEach(c => c.classList.toggle('is-on', c.dataset.scope === scope));
   }
 
   function formatTime(ts) {
@@ -569,14 +537,6 @@
     });
   }
 
-  $chips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      $chips.forEach(c => c.classList.remove('is-on'));
-      chip.classList.add('is-on');
-      currentScope = chip.dataset.scope;
-    });
-  });
-
   $langChips.forEach(chip => {
     chip.addEventListener('click', () => {
       chip.classList.toggle('is-on');
@@ -617,8 +577,8 @@
 
     // 模拟一点点延迟
     setTimeout(() => {
-      const suggestions = generateSuggestions(query, currentScope, currentLangs);
-      const results = mockSearch(query, currentScope);
+      const suggestions = generateSuggestions(query, currentLangs);
+      const results = mockSearch(query);
       renderSuggestions(suggestions);
       renderResults(results);
 
@@ -629,7 +589,6 @@
         // 5 秒内同查询的旧记录 → 替换而非新增
         const recent = arr[0];
         if (recent && recent.query === query && (Date.now() - recent.ts) < 5000) {
-          recent.scope = currentScope;
           recent.year = currentYear;
           recent.langs = currentLangs;
           recent.suggestionCount = suggestions.length;
@@ -641,7 +600,6 @@
           arr.unshift({
             id,
             query,
-            scope: currentScope,
             year: currentYear,
             langs: currentLangs,
             suggestionCount: suggestions.length,

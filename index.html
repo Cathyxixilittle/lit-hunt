@@ -13,6 +13,7 @@
     rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="edit.css" />
 </head>
 <body>
 
@@ -103,13 +104,6 @@
           </div>
 
           <div class="searchbox__row searchbox__row--meta">
-            <div class="searchbox__chips" role="group" aria-label="研究侧重">
-              <span class="searchbox__chip-label">侧重：</span>
-              <button type="button" class="chip is-on" data-scope="general">通用</button>
-              <button type="button" class="chip" data-scope="empirical">实证</button>
-              <button type="button" class="chip" data-scope="theoretical">理论</button>
-              <button type="button" class="chip" data-scope="review">综述</button>
-            </div>
             <div class="searchbox__chips">
               <span class="searchbox__chip-label">语言：</span>
               <button type="button" class="chip is-on" data-lang="zh">中文</button>
@@ -204,11 +198,24 @@
         <div class="panel__head">
           <p class="panel__kicker">N° 03 · Outline</p>
           <h2 class="panel__title">论文大纲起稿室</h2>
-          <p class="panel__lead">输入研究问题，得到一个可编辑的大纲骨架。v0.2 上线。</p>
+          <p class="panel__lead">上传作业要求与 rubric，随时查看。v0.3：拖拽上传已就绪。</p>
         </div>
-        <div class="placeholder">
-          <div class="placeholder__icon">§</div>
-          <p class="placeholder__text">大纲生成器正在路上。<br/>先把检索与引用做扎实。</p>
+        <!-- 作业要求 & Rubric 上传区 -->
+        <div class="upload-section">
+          <div class="upload-section__intro">
+            <p>把学校给的作业要求和 rubric 拖进来，存着随时看。后续还会支持自动解析评分标准、提取重点。</p>
+          </div>
+
+          <!-- 拖拽区 -->
+          <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="拖拽文件到这里，或点击选择">
+            <div class="dropzone__icon">📎</div>
+            <p class="dropzone__text">拖拽文件到这里</p>
+            <p class="dropzone__sub">或 <span class="dropzone__link">点击选择</span> · 支持 PDF、Word</p>
+            <input type="file" id="fileInput" accept=".pdf,.doc,.docx" hidden multiple>
+          </div>
+
+          <!-- 文件列表 -->
+          <div class="upload-list" id="uploadList" aria-label="已上传文件"></div>
         </div>
       </section>
 
@@ -218,6 +225,56 @@
   <!-- ========== TOAST ========== -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <!-- ========== IN-PAGE EDIT (Lovable-like) ========== -->
+  <button class="edit-fab" id="editFab" type="button" aria-label="切换编辑模式" title="点我开始改页面">
+    <span class="edit-fab__icon" aria-hidden="true">✎</span>
+    <span class="edit-fab__label" id="editFabLabel">Edit</span>
+  </button>
+
+  <aside class="edit-panel" id="editPanel" hidden aria-label="编辑器">
+    <header class="edit-panel__head">
+      <span class="edit-panel__status" id="editStatus">Edit mode · 点击页面上任意元素</span>
+      <button class="edit-panel__close" id="editClose" type="button" aria-label="关闭">×</button>
+    </header>
+
+    <div class="edit-panel__selected" id="editSelectedInfo">
+      <p class="edit-panel__hint">还没选中任何东西。<br/>在页面上点一下你想改的地方。</p>
+    </div>
+
+    <form class="edit-panel__form" id="editForm" autocomplete="off">
+      <input
+        type="text"
+        class="edit-panel__input"
+        id="editInput"
+        placeholder="说人话：大一点 / 换红色 / 居中 / 加阴影…"
+      />
+      <button class="edit-panel__submit" type="submit">应用</button>
+    </form>
+
+    <div class="edit-panel__quick" role="group" aria-label="快捷操作">
+      <button data-edit="size+" type="button" title="大一号">A+</button>
+      <button data-edit="size-" type="button" title="小一号">A−</button>
+      <button data-edit="color-ink" type="button" title="深棕">深</button>
+      <button data-edit="color-tea" type="button" title="茶烟棕">茶</button>
+      <button data-edit="color-red" type="button" title="警示红">红</button>
+      <button data-edit="bold" type="button" title="加粗"><b>B</b></button>
+      <button data-edit="italic" type="button" title="斜体"><i>I</i></button>
+      <button data-edit="center" type="button" title="居中">居</button>
+      <button data-edit="shadow" type="button" title="加阴影">影</button>
+      <button data-edit="hide" type="button" title="隐藏">隐</button>
+      <button data-edit="show" type="button" title="显示">显</button>
+      <button data-edit="delete" type="button" title="删除这个元素" class="edit-quick--danger">删</button>
+    </div>
+
+    <div class="edit-panel__log" id="editLog" aria-live="polite"></div>
+
+    <footer class="edit-panel__foot">
+      <button class="edit-panel__save" id="editSend" type="button" title="把改动整理成清单，复制到剪贴板">📋 发给 Coder</button>
+      <button class="edit-panel__reset" id="editReset" type="button" title="刷新页面，所有未提交的改动会丢">↺ 重置</button>
+    </footer>
+  </aside>
+
   <script src="script.js"></script>
+  <script src="edit.js" defer></script>
 </body>
 </html>
