@@ -361,6 +361,9 @@ em { font-style: italic; }
   font-variation-settings: "opsz" 144, "SOFT" 30;
   line-height: 1.15;
 }
+h2.panel__title.edit-selected {
+  font-size: 38.4px;
+}
 .panel__lead {
   font-size: var(--fs-lg);
   color: var(--ink-2);
