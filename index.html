@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lit-hunt · 学术文献工作台</title>
+  <meta name="description" content="一个通用型学术文献查找与整理工具——关键词建议、文献筛选、引用格式、大纲生成。" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500..700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4"/>
+      <feColorMatrix values="0 0 0 0 0.17 0 0 0 0 0.12 0 0 0 0 0.09 0 0 0 0.05 0"/>
+    </filter>
+  </svg>
+
+  <!-- ========== TOP BAR ========== -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="#">
+        <span class="brand__lit">lit</span><span class="brand__dot">·</span><span class="brand__hunt">hunt</span>
+        <span class="brand__tag">学术工作台 · v0.1</span>
+      </a>
+      <nav class="topnav">
+        <a href="#search" class="topnav__item is-active">
+          <span class="topnav__icon">⌕</span>搜索
+        </a>
+        <a href="#cite" class="topnav__item">
+          <span class="topnav__icon">❝</span>引用
+        </a>
+        <a href="#outline" class="topnav__item">
+          <span class="topnav__icon">§</span>大纲
+        </a>
+      </nav>
+      <div class="topbar__actions">
+        <a class="toplink" href="https://github.com/Cathyxixilittle/lit-hunt" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ========== SIDEBAR (search history) ========== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="side-section">
+        <header class="side-section__head">
+          <h2 class="side-section__title">搜索记录</h2>
+          <button class="side-section__clear" id="clearHistory" type="button" title="清空所有">清空</button>
+        </header>
+        <ul class="history" id="history" aria-label="搜索历史">
+          <li class="history__empty">还没有搜索记录。<br/>在右边输入你的第一个问题。</li>
+        </ul>
+      </div>
+
+      <div class="side-section">
+        <header class="side-section__head">
+          <h2 class="side-section__title">已收藏</h2>
+          <span class="side-section__count" id="savedCount">0</span>
+        </header>
+        <ul class="saved" id="saved" aria-label="收藏列表">
+          <li class="history__empty">在搜索结果或建议词上点 ☆ 即可收藏。</li>
+        </ul>
+      </div>
+
+      <div class="side-section side-section--quiet">
+        <p class="side-hint">
+          <strong>小贴士：</strong>所有记录仅保存在你本地浏览器，<br/>不上传，不追踪。
+        </p>
+      </div>
+    </aside>
+
+    <!-- ========== MAIN ========== -->
+    <main class="main">
+
+      <!-- ===== SEARCH PANEL ===== -->
+      <section class="panel" id="search">
+        <div class="panel__head">
+          <p class="panel__kicker">N° 01 · Search</p>
+          <h1 class="panel__title">开始一次研究检索</h1>
+          <p class="panel__lead">把你的研究问题丢进来。lit-hunt 会拆成中英双语关键词，再列出可筛选的文献卡。每一次搜索都自动存档在左边栏。</p>
+        </div>
+
+        <form class="searchbox" id="searchForm" autocomplete="off">
+          <div class="searchbox__row">
+            <label class="searchbox__label" for="topic">研究问题</label>
+            <div class="searchbox__field">
+              <textarea
+                id="topic"
+                class="searchbox__input"
+                rows="2"
+                placeholder="例：澳洲原住民议题在主流媒体里的再现方式"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="searchbox__row searchbox__row--meta">
+            <div class="searchbox__chips" role="group" aria-label="研究侧重">
+              <span class="searchbox__chip-label">侧重：</span>
+              <button type="button" class="chip is-on" data-scope="general">通用</button>
+              <button type="button" class="chip" data-scope="empirical">实证</button>
+              <button type="button" class="chip" data-scope="theoretical">理论</button>
+              <button type="button" class="chip" data-scope="review">综述</button>
+            </div>
+            <div class="searchbox__chips">
+              <span class="searchbox__chip-label">语言：</span>
+              <button type="button" class="chip is-on" data-lang="zh">中文</button>
+              <button type="button" class="chip is-on" data-lang="en">英文</button>
+            </div>
+            <div class="searchbox__chips">
+              <span class="searchbox__chip-label">年限：</span>
+              <button type="button" class="chip" data-year="any">不限</button>
+              <button type="button" class="chip is-on" data-year="5y">近 5 年</button>
+              <button type="button" class="chip" data-year="10y">近 10 年</button>
+            </div>
+          </div>
+
+          <div class="searchbox__row searchbox__row--action">
+            <div class="searchbox__status" id="searchStatus" aria-live="polite">
+              <span class="dot dot--idle"></span>
+              <span class="searchbox__status-text">就绪</span>
+            </div>
+            <button class="btn btn--primary" type="submit" id="searchBtn">
+              <span>开始检索</span>
+              <span class="btn__kbd">⌘ ↵</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Suggestions (keywords) -->
+        <div class="block">
+          <div class="block__head">
+            <h3 class="block__title">建议关键词</h3>
+            <span class="block__meta" id="suggestionMeta">0 条</span>
+          </div>
+          <div class="cards" id="suggestions">
+            <p class="block__empty">提交后这里会出现中英双语、含运算符的关键词组合。</p>
+          </div>
+        </div>
+
+        <!-- Results (mock literature cards) -->
+        <div class="block">
+          <div class="block__head">
+            <h3 class="block__title">匹配的文献 <span class="block__sub" id="resultSource">（数据源：本地 mock · v0.1）</span></h3>
+            <span class="block__meta" id="resultMeta">0 条</span>
+          </div>
+          <div class="cards cards--results" id="results">
+            <p class="block__empty">提交检索后这里会列出文献卡片。每条都可点开看摘要、收藏、加入引用队列。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== CITE PANEL ===== -->
+      <section class="panel" id="cite">
+        <div class="panel__head">
+          <p class="panel__kicker">N° 02 · Citation</p>
+          <h2 class="panel__title">引用格式速查</h2>
+          <p class="panel__lead">同一篇文献，四种主流引用样式。点任意一条可复制到剪贴板。</p>
+        </div>
+
+        <div class="cite-table" role="table" aria-label="引用样式对照">
+          <div class="cite-row cite-row--head" role="row">
+            <div role="columnheader">APA 7</div>
+            <div role="columnheader">MLA 9</div>
+            <div role="columnheader">Chicago</div>
+            <div role="columnheader">Harvard</div>
+          </div>
+          <div class="cite-row" role="row">
+            <button class="cite-cell" type="button">
+              <span class="cite-cell__text">Moreton-Robinson, A. (2015). <em>The White Possessive: Property, Power, and Indigenous Sovereignty</em>. University of Minnesota Press.</span>
+              <span class="cite-cell__tag">点击复制</span>
+            </button>
+            <button class="cite-cell" type="button">
+              <span class="cite-cell__text">Moreton-Robinson, Aileen. <em>The White Possessive: Property, Power, and Indigenous Sovereignty</em>. U of Minnesota P, 2015.</span>
+              <span class="cite-cell__tag">点击复制</span>
+            </button>
+            <button class="cite-cell" type="button">
+              <span class="cite-cell__text">Moreton-Robinson, Aileen. <em>The White Possessive: Property, Power, and Indigenous Sovereignty</em>. Minneapolis: University of Minnesota Press, 2015.</span>
+              <span class="cite-cell__tag">点击复制</span>
+            </button>
+            <button class="cite-cell" type="button">
+              <span class="cite-cell__text">Moreton-Robinson, A. (2015) <em>The White Possessive: Property, Power, and Indigenous Sovereignty</em>. Minneapolis: University of Minnesota Press.</span>
+              <span class="cite-cell__tag">点击复制</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="cite-note">
+          <span class="cite-note__mark">i</span>
+          元数据 → 引用格式自动生成（v0.3 上线）。当前先提供示例对照。
+        </p>
+      </section>
+
+      <!-- ===== OUTLINE PANEL ===== -->
+      <section class="panel" id="outline">
+        <div class="panel__head">
+          <p class="panel__kicker">N° 03 · Outline</p>
+          <h2 class="panel__title">论文大纲起稿室</h2>
+          <p class="panel__lead">输入研究问题，得到一个可编辑的大纲骨架。v0.2 上线。</p>
+        </div>
+        <div class="placeholder">
+          <div class="placeholder__icon">§</div>
+          <p class="placeholder__text">大纲生成器正在路上。<br/>先把检索与引用做扎实。</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ========== TOAST ========== -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

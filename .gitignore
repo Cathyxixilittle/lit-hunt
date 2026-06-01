@@ -1,0 +1,37 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# OS
+.DS_Store
+.AppleDouble
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python (in case we add a backend later)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.Python
+
+# Node (in case we add tooling later)
+node_modules/
+npm-debug.log*
+.next/
+dist/
+build/
+
+# Logs
+*.log
+logs/
