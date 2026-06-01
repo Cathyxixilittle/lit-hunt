@@ -8,22 +8,8 @@
 
   /* ====================== MiniMax AI 关键词优化 ====================== */
 
-  let MINIMAX_API_KEY = '';
-  let miniMaxKeyLoaded = false;
-
-  // 读取 .env 中的 API key（前端只能通过 fetch 读同源文件）
-  async function loadApiKey() {
-    if (miniMaxKeyLoaded) return;
-    try {
-      const res = await fetch('./.env');
-      const text = await res.text();
-      const match = text.match(/MINIMAX_API_KEY\s*=\s*(.+)/);
-      if (match) MINIMAX_API_KEY = match[1].trim();
-    } catch (e) {
-      console.warn('无法读取 .env 文件，AI 关键词优化将不可用。', e);
-    }
-    miniMaxKeyLoaded = true;
-  }
+  // MiniMax API Key（直接写入，请勿提交到 Git）
+  const MINIMAX_API_KEY = 'sk-api-ztZGNnyqQCnbIXQ-ooEg7CI7LCjs5Vrujz1eoJdnQGXOWDoIOjUHfcWfklAIvZbGBzPx4W7Nfq0lKvfbQrxhvIxcrZN_h_7Y-2vStrPAx1boXTRF10BWijA';
 
   const SYSTEM_PROMPT = `你是一个学术文献检索助手。你的任务是根据用户输入的研究问题，生成适合在学术数据库（如 Scopus、Web of Science、ERIC）搜索的关键词。
 
@@ -986,7 +972,6 @@
 
   /* ====================== Init ====================== */
 
-  loadApiKey(); // 异步加载 MiniMax API Key
   renderHistory();
   renderSaved();
   renderUploads();
