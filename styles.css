@@ -829,10 +829,10 @@ h2.panel__title.edit-selected {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  padding: 40px 20px;
   background: var(--paper);
-  border: 2px dashed var(--line-strong);
-  border-radius: var(--r-lg);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
@@ -849,15 +849,10 @@ h2.panel__title.edit-selected {
   background: color-mix(in srgb, var(--accent) 8%, var(--paper));
   border-style: solid;
 }
-.dropzone__icon {
-  font-size: 40px;
-  margin-bottom: 10px;
-}
 .dropzone__text {
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 6px;
+  font-size: var(--fs-md);
+  color: var(--ink-2);
+  margin: 0 0 4px;
 }
 .dropzone__sub {
   font-size: var(--fs-sm);
