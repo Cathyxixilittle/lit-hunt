@@ -657,6 +657,132 @@
     toastTimer = setTimeout(() => $toast.classList.remove('is-shown'), 1800);
   }
 
+  /* ====================== 文件上传区 ====================== */
+
+  const $dropzone = document.getElementById('dropzone');
+  const $fileInput = document.getElementById('fileInput');
+  const $uploadList = document.getElementById('uploadList');
+
+  const UPLOADS_KEY = 'lit_hunt_uploads';
+
+  function loadUploads() {
+    try { return JSON.parse(localStorage.getItem(UPLOADS_KEY) || '[]'); }
+    catch { return []; }
+  }
+
+  function saveUploads(arr) {
+    localStorage.setItem(UPLOADS_KEY, JSON.stringify(arr));
+  }
+
+  function fileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (ext === 'pdf') return '📕';
+    if (['doc', 'docx'].includes(ext)) return '📄';
+    return '📄';
+  }
+
+  function fileBadgeClass(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (ext === 'pdf') return 'badge--pdf';
+    if (ext === 'docx') return 'badge--docx';
+    if (ext === 'doc') return 'badge--doc';
+    return 'badge--txt';
+  }
+
+  function badgeLabel(name) {
+    return name.split('.').pop().toUpperCase();
+  }
+
+  function renderUploads() {
+    const uploads = loadUploads();
+    if (!uploads.length) {
+      $uploadList.innerHTML = '';
+      return;
+    }
+    $uploadList.innerHTML = uploads.map((f, i) => `
+      <div class="upload-card" data-index="${i}">
+        <div class="upload-card__icon">${fileIcon(f.name)}</div>
+        <div class="upload-card__info">
+          <p class="upload-card__name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</p>
+          <div class="upload-card__meta">
+            <span class="upload-card__badge ${fileBadgeClass(f.name)}">${badgeLabel(f.name)}</span>
+            <span>${f.size > 1024 * 1024 ? Math.round(f.size / 1024 / 1024) + ' MB' : Math.round(f.size / 1024) + ' KB'}</span>
+          </div>
+        </div>
+        <button class="upload-card__del" data-index="${i}" type="button" title="删除" aria-label="删除 ${escapeHtml(f.name)}">×</button>
+      </div>
+    `).join('');
+
+    // 绑定删除
+    $uploadList.querySelectorAll('.upload-card__del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.index);
+        const uploads = loadUploads();
+        uploads.splice(idx, 1);
+        saveUploads(uploads);
+        renderUploads();
+        showToast('文件已删除');
+      });
+    });
+  }
+
+  function addFile(file) {
+    const uploads = loadUploads();
+    // 避免重复
+    if (uploads.some(u => u.name === file.name && u.size === file.size)) {
+      showToast('这个文件已经上传过了');
+      return;
+    }
+    // 大小限制 20MB
+    if (file.size > 20 * 1024 * 1024) {
+      showToast('文件太大，请控制在 20MB 以内');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      uploads.push({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: e.target.result, // base64
+        ts: Date.now(),
+      });
+      saveUploads(uploads);
+      renderUploads();
+      showToast(`已添加：${file.name}`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // 拖拽
+  $dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    $dropzone.classList.add('dropzone--drag');
+  });
+  $dropzone.addEventListener('dragleave', e => {
+    e.preventDefault();
+    $dropzone.classList.remove('dropzone--drag');
+  });
+  $dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    $dropzone.classList.remove('dropzone--drag');
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(f => addFile(f));
+  });
+
+  // 点击触发 file input
+  $dropzone.addEventListener('click', () => $fileInput.click());
+  $dropzone.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.click(); }
+  });
+
+  // 文件选择
+  $fileInput.addEventListener('change', () => {
+    Array.from($fileInput.files).forEach(f => addFile(f));
+    $fileInput.value = ''; // reset so同一文件可以重复选
+  });
+
   /* ====================== Clipboard ====================== */
 
   async function copyToClipboard(text) {
@@ -680,8 +806,8 @@
 
   renderHistory();
   renderSaved();
+  renderUploads();
   setStatus('idle', '就绪');
-  setScopeChips('general', $chips);
   $topic.focus();
 
 })();
