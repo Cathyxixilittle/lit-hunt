@@ -1,10 +1,89 @@
 /* ============================================
-   lit-hunt · script.js · v0.2
+   lit-hunt · script.js · v0.4
    关键词生成 + 搜索历史（localStorage）+ 收藏
    ============================================ */
 
 (function () {
   'use strict';
+
+  /* ====================== MiniMax AI 关键词优化 ====================== */
+
+  let MINIMAX_API_KEY = '';
+  let miniMaxKeyLoaded = false;
+
+  // 读取 .env 中的 API key（前端只能通过 fetch 读同源文件）
+  async function loadApiKey() {
+    if (miniMaxKeyLoaded) return;
+    try {
+      const res = await fetch('./.env');
+      const text = await res.text();
+      const match = text.match(/MINIMAX_API_KEY\s*=\s*(.+)/);
+      if (match) MINIMAX_API_KEY = match[1].trim();
+    } catch (e) {
+      console.warn('无法读取 .env 文件，AI 关键词优化将不可用。', e);
+    }
+    miniMaxKeyLoaded = true;
+  }
+
+  const SYSTEM_PROMPT = `你是一个学术文献检索助手。你的任务是根据用户输入的研究问题，生成适合在学术数据库（如 Scopus、Web of Science、ERIC）搜索的关键词。
+
+请分析研究问题，提取并返回以下内容（严格按 JSON 格式返回，不要有其他文字）：
+{
+  "core_concepts": ["核心概念1", "核心概念2"],
+  "en_keywords": ["英文关键词1", "英文关键词2", "英文关键词3"],
+  "zh_keywords": ["中文关键词1", "中文关键词2"],
+  "alternative_phrasings": ["可选表达1", "可选表达2"],
+  "related_topics": ["相关主题1", "相关主题2"]
+}
+
+要求：
+- en_keywords：最相关、最常用的英文搜索词（3-5个）
+- zh_keywords：对应的中文关键词（2-3个）
+- alternative_phrasings：同一概念的其他英文表达方式
+- related_topics：可能的相关研究方向（扩展思路用）
+- 只返回 JSON，不要解释`;
+
+  async function callMiniMaxKeyword(rawQuestion) {
+    if (!MINIMAX_API_KEY) {
+      console.warn('MiniMax API Key 未配置');
+      return null;
+    }
+    try {
+      const res = await fetch('https://api.minimaxi.com/v1/text/chatcompletion_v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${MINIMAX_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-M3',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: `研究问题：${rawQuestion}` },
+          ],
+          temperature: 0.3,
+          max_tokens: 600,
+        }),
+      });
+      if (!res.ok) throw new Error(`API 错误: ${res.status}`);
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      // 提取 JSON（可能有 markdown 包裹）
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      return null;
+    } catch (e) {
+      console.error('MiniMax API 调用失败:', e);
+      return null;
+    }
+  }
+
+  function showAiThinking(show) {
+    const el = document.getElementById('aiThinking');
+    if (el) el.hidden = !show;
+  }
 
   /* ====================== 数据层 ====================== */
 
@@ -162,6 +241,98 @@
     }
 
     return out.slice(0, 6);
+  }
+
+  /**
+   * 用 AI 关键词 + 原始规则生成建议
+   * aiResult: MiniMax 返回的 JSON（可能为 null）
+   */
+  function generateSuggestionsFromAI(rawText, langs, aiResult) {
+    const text = (rawText || '').trim();
+    if (!text) return [];
+    const out = [];
+    const wantZh = langs.includes('zh');
+    const wantEn = langs.includes('en');
+    const zhTerms = extractZh(text);
+    const enTerms = extractEn(text);
+    const translated = zhToEn(text);
+
+    // AI 关键词池（优先使用）
+    const aiEn = aiResult?.en_keywords || [];
+    const aiZh = aiResult?.zh_keywords || [];
+    const aiAlt = aiResult?.alternative_phrasings || [];
+    const aiRelated = aiResult?.related_topics || [];
+    const aiCore = aiResult?.core_concepts || [];
+
+    // 1. AI 核心词组合（如果有）
+    if (aiEn.length >= 2) {
+      out.push({
+        tag: 'AI 关键词',
+        text: `(${aiEn.slice(0, 4).join(' AND ')})`,
+        source: 'ai',
+      });
+    } else if (aiEn.length === 1) {
+      out.push({ tag: 'AI 关键词', text: `"${aiEn[0]}"`, source: 'ai' });
+    }
+
+    // 2. 原文（起步）
+    if (text.length <= 80) {
+      out.push({ tag: '原文', text: `"${text}"`, source: 'local' });
+    }
+
+    // 3. AI 替代表达
+    if (aiAlt.length > 0) {
+      out.push({
+        tag: 'AI 扩展',
+        text: `(${aiAlt.slice(0, 3).join(' OR ')})`,
+        source: 'ai',
+      });
+    }
+
+    // 4. 中文 OR
+    const zhPool = [...new Set([...zhTerms, ...aiZh])];
+    if (wantZh && zhPool.length >= 2) {
+      out.push({ tag: '中文 OR', text: `(${zhPool.slice(0, 4).join(' OR ')})`, source: 'local' });
+    } else if (wantZh && zhPool.length === 1) {
+      out.push({ tag: '中文', text: `"${zhPool[0]}"`, source: 'local' });
+    }
+
+    // 5. 英文 OR
+    const enPool = [...new Set([...enTerms, ...translated, ...aiEn])];
+    if (wantEn && enPool.length >= 2) {
+      out.push({ tag: '英文 OR', text: `(${enPool.slice(0, 4).join(' OR ')})`, source: 'local' });
+    } else if (wantEn && enPool.length === 1) {
+      out.push({ tag: '英文', text: `"${enPool[0]}"`, source: 'local' });
+    }
+
+    // 6. 中英组合（AI 提供的中英对照）
+    if (aiEn.length > 0 && aiZh.length > 0) {
+      out.push({
+        tag: '中英组合',
+        text: `"${aiZh[0]}" AND "${aiEn[0]}"`,
+        source: 'ai',
+      });
+    }
+
+    // 7. AI 相关主题扩展
+    if (aiRelated.length > 0) {
+      out.push({
+        tag: 'AI 扩展',
+        text: `(${aiRelated.slice(0, 3).join(' OR ')})`,
+        source: 'ai',
+      });
+    }
+
+    // 8. 年限筛选（基于第一条）
+    if (out.length > 0) {
+      out.push({
+        tag: '年限筛选',
+        text: `${out[0].text} AND PUB_YEAR > 2019`,
+        source: 'local',
+      });
+    }
+
+    return out.slice(0, 8);
   }
 
   /* ====================== Mock 文献 ====================== */
@@ -567,22 +738,29 @@
 
   /* ====================== 搜索 ====================== */
 
-  function doSearch(record = true) {
+  async function doSearch(record = true) {
     const query = $topic.value.trim();
     if (!query) {
       setStatus('idle', '请先输入研究问题');
       return;
     }
     setStatus('working', '正在检索…');
+    showAiThinking(true);
 
-    // 模拟一点点延迟
-    setTimeout(() => {
-      const suggestions = generateSuggestions(query, currentLangs);
+    try {
+      // 1. 先让 AI 分析研究问题，生成优化关键词
+      const aiResult = await callMiniMaxKeyword(query);
+
+      // 2. 用 AI 关键词 + 原始规则生成建议
+      const suggestions = generateSuggestionsFromAI(query, currentLangs, aiResult);
       const results = mockSearch(query);
+
+      showAiThinking(false);
       renderSuggestions(suggestions);
       renderResults(results);
 
-      setStatus('done', `${suggestions.length} 条建议词 · ${results.length} 条结果`);
+      const aiTag = aiResult ? ' · AI 加持' : '';
+      setStatus('done', `${suggestions.length} 条建议词${aiTag} · ${results.length} 条结果`);
 
       if (record) {
         const arr = loadHistory();
@@ -614,7 +792,11 @@
       } else {
         markActiveHistory(currentSession);
       }
-    }, 380);
+    } catch (err) {
+      showAiThinking(false);
+      console.error('搜索出错:', err);
+      setStatus('idle', '搜索出错，请重试');
+    }
   }
 
   $form.addEventListener('submit', e => {
@@ -804,6 +986,7 @@
 
   /* ====================== Init ====================== */
 
+  loadApiKey(); // 异步加载 MiniMax API Key
   renderHistory();
   renderSaved();
   renderUploads();

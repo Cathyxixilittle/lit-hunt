@@ -823,6 +823,27 @@ h2.panel__title.edit-selected {
   line-height: 1.5;
 }
 
+/* AI 思考指示器 */
+.ai-thinking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  font-weight: 500;
+}
+.ai-thinking__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ai-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
 /* 拖拽区 */
 .dropzone {
   display: flex;

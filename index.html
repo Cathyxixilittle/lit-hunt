@@ -119,7 +119,11 @@
           <div class="searchbox__row searchbox__row--action">
             <div class="searchbox__status" id="searchStatus" aria-live="polite">
               <span class="dot dot--idle"></span>
-              <span class="searchbox__status-text">就绪</span>
+              <span class="searchbox__status-text" id="searchStatusText">就绪</span>
+            </div>
+            <div class="ai-thinking" id="aiThinking" hidden aria-live="polite">
+              <span class="ai-thinking__dot"></span>
+              <span class="ai-thinking__text">MiniMax 正在分析…</span>
             </div>
             <button class="btn btn--primary" type="submit" id="searchBtn">
               <span>开始检索</span>
