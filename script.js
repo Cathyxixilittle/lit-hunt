@@ -257,12 +257,7 @@
       out.push({ tag: 'AI 关键词', text: `"${aiEn[0]}"`, source: 'ai' });
     }
 
-    // 2. 原文（起步）
-    if (text.length <= 80) {
-      out.push({ tag: '原文', text: `"${text}"`, source: 'local' });
-    }
-
-    // 3. AI 替代表达
+    // 2. AI 替代表达（可选表达）
     if (aiAlt.length > 0) {
       out.push({
         tag: 'AI 扩展',
@@ -271,32 +266,7 @@
       });
     }
 
-    // 4. 中文 OR
-    const zhPool = [...new Set([...zhTerms, ...aiZh])];
-    if (wantZh && zhPool.length >= 2) {
-      out.push({ tag: '中文 OR', text: `(${zhPool.slice(0, 4).join(' OR ')})`, source: 'local' });
-    } else if (wantZh && zhPool.length === 1) {
-      out.push({ tag: '中文', text: `"${zhPool[0]}"`, source: 'local' });
-    }
-
-    // 5. 英文 OR
-    const enPool = [...new Set([...enTerms, ...translated, ...aiEn])];
-    if (wantEn && enPool.length >= 2) {
-      out.push({ tag: '英文 OR', text: `(${enPool.slice(0, 4).join(' OR ')})`, source: 'local' });
-    } else if (wantEn && enPool.length === 1) {
-      out.push({ tag: '英文', text: `"${enPool[0]}"`, source: 'local' });
-    }
-
-    // 6. 中英组合（AI 提供的中英对照）
-    if (aiEn.length > 0 && aiZh.length > 0) {
-      out.push({
-        tag: '中英组合',
-        text: `"${aiZh[0]}" AND "${aiEn[0]}"`,
-        source: 'ai',
-      });
-    }
-
-    // 7. AI 相关主题扩展
+    // 3. AI 相关主题扩展
     if (aiRelated.length > 0) {
       out.push({
         tag: 'AI 扩展',
@@ -305,16 +275,7 @@
       });
     }
 
-    // 8. 年限筛选（基于第一条）
-    if (out.length > 0) {
-      out.push({
-        tag: '年限筛选',
-        text: `${out[0].text} AND PUB_YEAR > 2019`,
-        source: 'local',
-      });
-    }
-
-    return out.slice(0, 8);
+    return out.slice(0, 6);
   }
 
   /* ====================== OpenAlex 真实文献检索 ====================== */
