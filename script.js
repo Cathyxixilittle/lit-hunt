@@ -11,23 +11,19 @@
   // MiniMax API Key（服务器注入，勿手动修改）
   const MINIMAX_API_KEY = 'MINIMAX_API_KEY_PLACEHOLDER';
 
-  const SYSTEM_PROMPT = `你是一个学术文献检索助手。你的任务是根据用户输入的研究问题，生成适合在学术数据库（如 Scopus、Web of Science、ERIC）搜索的关键词。
+  const SYSTEM_PROMPT = `你是一个学术文献检索助手。你的任务是根据用户输入的研究问题，生成精准的英文关键词，用于在学术数据库（Scopus、Web of Science、OpenAlex）中检索相关文献。
 
-请分析研究问题，提取并返回以下内容（严格按 JSON 格式返回，不要有其他文字）：
+请严格按以下 JSON 格式返回，不要有其他文字：
 {
-  "core_concepts": ["核心概念1", "核心概念2"],
-  "en_keywords": ["英文关键词1", "英文关键词2", "英文关键词3"],
-  "zh_keywords": ["中文关键词1", "中文关键词2"],
-  "alternative_phrasings": ["可选表达1", "可选表达2"],
-  "related_topics": ["相关主题1", "相关主题2"]
+  "en_keywords": ["关键词1", "关键词2", "关键词3"],
 }
 
 要求：
-- en_keywords：最相关、最常用的英文搜索词（3-5个）
-- zh_keywords：对应的中文关键词（2-3个）
-- alternative_phrasings：同一概念的其他英文表达方式
-- related_topics：可能的相关研究方向（扩展思路用）
-- 只返回 JSON，不要解释`;
+- en_keywords：返回 3-5 个最精准的英文关键词或短语，用于 AND 组合检索
+- 关键词必须是研究问题的核心概念，足够具体，避免泛泛的形容词
+- 优先使用名词短语（如 "cloud computing"，而非单独的 "cloud"）
+- 多个关键词用 AND 连接可检索到高度相关的文献
+- 只返回 JSON，不要任何解释`;
 
   async function callMiniMaxKeyword(rawQuestion) {
     if (!MINIMAX_API_KEY) {
@@ -807,8 +803,10 @@
       let results = [];
       const aiKeywords = aiResult?.en_keywords || [];
       if (aiKeywords.length > 0) {
-        const searchQuery = aiKeywords.slice(0, 3).join(' ');
-        results = await openAlexSearch(searchQuery, currentLangs, currentYear);
+        // 用最精准的 2-3 个关键词用 AND 组合，提升精确度
+        const topKeywords = aiKeywords.slice(0, 3);
+        const preciseQuery = topKeywords.join(' AND ');
+        results = await openAlexSearch(preciseQuery, currentLangs, currentYear);
       }
       // 如果 AI 没返回关键词，降级用原始 query
       if (results.length === 0) {
