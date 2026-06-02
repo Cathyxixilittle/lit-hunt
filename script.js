@@ -325,14 +325,16 @@
     if (year === '5y') yearFilter = 'publication_year:2020-2025';
     else if (year === '10y') yearFilter = 'publication_year:2015-2025';
 
-    // 语言过滤：英文用 primary_location.source.host_org_lineage.name:University 简单近似
-    const searchParts = [query];
+    // OpenAlex search 参数：搜索 title + abstract，title.search 条件与 search AND 组合确保精准
     const params = new URLSearchParams({
       search: query,
       'per-page': '10',
       sort: 'relevance_score:desc',
     });
-    if (yearFilter) params.set('filter', yearFilter);
+    const filters = [];
+    if (yearFilter) filters.push(yearFilter);
+    filters.push(`title.search:${query}`);
+    params.set('filter', filters.join(','));
 
     const url = `https://api.openalex.org/works?${params.toString()}`;
 
@@ -807,10 +809,19 @@
         const topKeywords = aiKeywords.slice(0, 3);
         const preciseQuery = topKeywords.join(' AND ');
         results = await openAlexSearch(preciseQuery, currentLangs, currentYear);
+
+        // 如果 AND 组合太严格没结果，用 OR 宽松一次
+        if (results.length === 0) {
+          const looseQuery = topKeywords.join(' OR ');
+          results = await openAlexSearch(looseQuery, currentLangs, currentYear);
+        }
       }
-      // 如果 AI 没返回关键词，降级用原始 query
+      // 如果 AI 没返回关键词，降级用原始 query（仅英文部分）
       if (results.length === 0) {
-        results = await openAlexSearch(query, currentLangs, currentYear);
+        const enTerms = extractEn(query);
+        if (enTerms.length > 0) {
+          results = await openAlexSearch(enTerms.slice(0, 3).join(' AND '), currentLangs, currentYear);
+        }
       }
 
       showAiThinking(false);
