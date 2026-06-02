@@ -12,7 +12,7 @@ import http.server
 import socketserver
 import re
 
-PORT = 5173
+PORT = 5180
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 API_KEY = os.getenv("MINIMAX_API_KEY", "")
 PLACEHOLDER = "MINIMAX_API_KEY_PLACEHOLDER"
@@ -48,7 +48,7 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(content.encode("utf-8"))
             return
 
-        return super().do_GET(path)
+        return super().do_GET()
 
     def translate_path(self, path):
         import os

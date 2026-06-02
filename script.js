@@ -321,7 +321,71 @@
     return out.slice(0, 8);
   }
 
-  /* ====================== Mock 文献 ====================== */
+  /* ====================== OpenAlex 真实文献检索 ====================== */
+
+  async function openAlexSearch(query, langs, year) {
+    // 构造年限过滤
+    let yearFilter = '';
+    if (year === '5y') yearFilter = 'publication_year:2020-2025';
+    else if (year === '10y') yearFilter = 'publication_year:2015-2025';
+
+    // 语言过滤：英文用 primary_location.source.host_org_lineage.name:University 简单近似
+    const searchParts = [query];
+    const params = new URLSearchParams({
+      search: query,
+      'per-page': '10',
+      sort: 'relevance_score:desc',
+    });
+    if (yearFilter) params.set('filter', yearFilter);
+
+    const url = `https://api.openalex.org/works?${params.toString()}`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      return (data.results || []).map(w => {
+        // 重建 abstract
+        let abstract = '';
+        if (w.abstract_inverted_index) {
+          const wordPositions = {};
+          for (const [word, positions] of Object.entries(w.abstract_inverted_index)) {
+            positions.forEach(pos => { wordPositions[pos] = word; });
+          }
+          abstract = Object.keys(wordPositions).sort((a, b) => a - b)
+            .map(pos => wordPositions[pos]).join(' ');
+        }
+
+        // 作者（取前3个）
+        const authors = (w.authorships || [])
+          .slice(0, 3)
+          .map(a => a.author?.display_name || '')
+          .filter(Boolean)
+          .join(', ');
+
+        // 来源名称
+        const source = w.primary_location?.source?.display_name || w.host_venue?.display_name || '';
+        const docType = w.type || '';
+
+        return {
+          title: w.title || '',
+          authors,
+          year: w.publication_year || '',
+          source,
+          type: docType,
+          abstract: abstract.slice(0, 300),
+          url: w.doi || w.id || '#',
+          citedCount: w.cited_by_count || 0,
+        };
+      });
+    } catch (e) {
+      console.error('OpenAlex 搜索失败:', e);
+      return [];
+    }
+  }
+
+  /* ====================== Mock 文献（保留作降级）====================== */
 
   // 简化的 mock 数据库，覆盖她可能的研究方向
   const MOCK_CORPUS = [
@@ -490,7 +554,7 @@
 
   function renderResults(papers) {
     if (!papers.length) {
-      $results.innerHTML = '<p class="block__empty">当前 mock 数据库里没有匹配项。试试更宽泛的词，或接 Crossref / OpenAlex API。</p>';
+      $results.innerHTML = '<p class="block__empty">OpenAlex 未找到相关文献。请尝试调整关键词，或扩大年限范围。</p>';
       $resultMeta.textContent = '0 条';
       return;
     }
@@ -498,16 +562,15 @@
     $results.innerHTML = papers.map((p, i) => `
       <div class="result" style="animation-delay:${0.04 + i * 0.05}s">
         <div class="result__head">
-          <span class="result__source">${escapeHtml(p.source)} · ${escapeHtml(p.type)}</span>
+          <span class="result__source">${p.source ? escapeHtml(p.source) + (p.type ? ' · ' + escapeHtml(p.type) : '') : (p.type ? escapeHtml(p.type) : '学术文献')}</span>
           <button class="result__star" data-save="paper::${escapeHtml(p.title)}" aria-label="收藏" type="button">☆</button>
         </div>
-        <h4 class="result__title">${escapeHtml(p.title)}</h4>
+        <h4 class="result__title">${p.url && p.url !== '#' ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.title)}</a>` : escapeHtml(p.title)}</h4>
         <p class="result__meta">
           <span>${escapeHtml(p.authors)}</span>
           <span class="sep">·</span>
           <span class="year">${p.year}</span>
-          <span class="sep">·</span>
-          <span class="cited">mock data</span>
+          ${p.citedCount ? `<span class="sep">·</span><span class="cited">被引 ${p.citedCount}</span>` : ''}
         </p>
         <p class="result__abstract result__abstract--clamp">${escapeHtml(p.abstract)}</p>
         <div class="result__actions">
@@ -739,7 +802,18 @@
 
       // 2. 用 AI 关键词 + 原始规则生成建议
       const suggestions = generateSuggestionsFromAI(query, currentLangs, aiResult);
-      const results = mockSearch(query);
+
+      // 3. 用 AI 英文关键词组合做 OpenAlex 真实检索
+      let results = [];
+      const aiKeywords = aiResult?.en_keywords || [];
+      if (aiKeywords.length > 0) {
+        const searchQuery = aiKeywords.slice(0, 3).join(' ');
+        results = await openAlexSearch(searchQuery, currentLangs, currentYear);
+      }
+      // 如果 AI 没返回关键词，降级用原始 query
+      if (results.length === 0) {
+        results = await openAlexSearch(query, currentLangs, currentYear);
+      }
 
       showAiThinking(false);
       renderSuggestions(suggestions);
