@@ -1737,7 +1737,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     };
     const rest = a => {
       const family = a.family || a.display || '';
-      return a.given ? `${a.given} ${family}` : family;
+      return a.given ? `${family}, ${a.given}` : family;
     };
     if (authors.length === 1) return one(authors[0]);
     const first = one(authors[0]);
@@ -1801,7 +1801,10 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     const doi = meta.doi || '';
     if (isBookLike(meta)) {
       const pub = meta.publisher || '';
-      return `${author ? author + ' ' : ''}(${year}). ${escapeHTML(title)}.${pub ? ' ' + escapeHTML(pub) + '.' : ''}${doi ? ' ' + escapeHTML('https://doi.org/' + doi) : ''}`;
+      let out = (author ? author + ' ' : '') + `(${year}). <em>${escapeHTML(title)}</em>.`;
+      if (pub) out += ' ' + escapeHTML(pub) + '.';
+      if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+      return out;
     }
     const journal = meta.container || '';
     const vol = meta.volume || '';
@@ -1864,7 +1867,10 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     const doi = meta.doi || '';
     if (isBookLike(meta)) {
       const pub = meta.publisher || '';
-      return `${author ? author + '. ' : ''}${year}. <em>${escapeHTML(title)}</em>.${pub ? ' ' + escapeHTML(pub) + '.' : ''}`;
+      let out = (author ? author + '. ' : '') + `${year}. <em>${escapeHTML(title)}</em>.`;
+      if (pub) out += ' ' + escapeHTML(pub) + '.';
+      if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+      return out;
     }
     const journal = meta.container || '';
     const vol = meta.volume || '';
@@ -1875,7 +1881,11 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     if (vol) mid += ` ${escapeHTML(vol)}`;
     if (iss) mid += ` (${escapeHTML(iss)})`;
     if (page) mid += `: ${escapeHTML(page)}`;
-    let out = `${author ? author + '. ' : ''}${year}. "${escapeHTML(title)}."${mid}.`;
+    let out = '';
+    if (author) {
+      out = author.replace(/\.+\s*$/, '') + '. ';
+    }
+    out += `${year}. "${escapeHTML(title)}."${mid}.`;
     if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
     return out;
   }
@@ -1892,7 +1902,10 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     const doi = meta.doi || '';
     if (isBookLike(meta)) {
       const pub = meta.publisher || '';
-      return `${author ? author + ' ' : ''}(${year}) <em>${escapeHTML(title)}</em>.${pub ? ' ' + escapeHTML(pub) + '.' : ''}`;
+      let out = (author ? author + ' ' : '') + `(${year}) <em>${escapeHTML(title)}</em>.`;
+      if (pub) out += ' ' + escapeHTML(pub) + '.';
+      if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+      return out;
     }
     const journal = meta.container || '';
     const vol = meta.volume || '';
@@ -1903,7 +1916,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     if (vol) mid += `, ${escapeHTML(vol)}`;
     if (iss) mid += `(${escapeHTML(iss)})`;
     if (page) mid += `, pp. ${escapeHTML(page)}`;
-    return `${author ? author + ', ' : ''}${year}. ${escapeHTML(title)}.${mid}.${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
+    return `${author ? author + ' ' : ''}${year}. ${escapeHTML(title)}.${mid}.${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
   }
 
   // ====================== DOM ======================
