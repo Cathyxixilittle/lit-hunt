@@ -415,6 +415,10 @@ h2.panel__title.edit-selected {
   color: var(--ink-4);
   font-weight: 400;
 }
+.searchbox__input--sm {
+  font-size: var(--fs-md);
+  font-weight: 400;
+}
 
 .searchbox__chips {
   display: flex;
