@@ -403,8 +403,8 @@ h2.panel__title.edit-selected {
   border: none;
   background: transparent;
   font-family: var(--font-ui);
-  font-size: var(--fs-xl);
-  font-weight: 500;
+  font-size: var(--fs-md);
+  font-weight: 400;
   color: var(--ink);
   padding: 4px 0;
   resize: vertical;
@@ -416,8 +416,10 @@ h2.panel__title.edit-selected {
   font-weight: 400;
 }
 .searchbox__input--sm {
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm);
   font-weight: 400;
+  font-family: var(--font-ui);
+  letter-spacing: 0.01em;
 }
 
 .searchbox__chips {
@@ -882,6 +884,79 @@ h2.panel__title.edit-selected {
 /* ============================================
    Citation table
    ============================================ */
+/* DOI 输入盒（cite panel 顶部） */
+.doi-box {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.doi-box__row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.doi-box__input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.doi-box__input::placeholder {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+.doi-box__input:focus {
+  border-color: var(--ink-3);
+  background: var(--paper);
+}
+.doi-box__btn {
+  font-size: var(--fs-sm);
+  padding: 6px 18px;
+  white-space: nowrap;
+}
+.doi-box__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.doi-box__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+}
+.doi-box__hint { color: var(--ink-3); }
+.doi-box__hint a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--line-2);
+  transition: text-decoration-color .12s ease;
+}
+.doi-box__hint a:hover { text-decoration-color: var(--ink-2); }
+.doi-box__status {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.doi-box__status.is-loading { color: var(--warning); }
+.doi-box__status.is-error { color: var(--danger); }
+.doi-box__status.is-ok { color: var(--success); }
+
 .cite-table {
   background: var(--paper);
   border: 1px solid var(--line);

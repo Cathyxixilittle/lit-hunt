@@ -1680,6 +1680,320 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     }
   });
 
+  /* ====================== DOI 解析（引用格式速查）====================== */
+
+  /**
+   * 把 "Charles R." / "K. Jarrod" 拆成 "C. R." / "K. J."
+   * 兼容 hyphen、点号、多段
+   */
+  function givenToInitials(given) {
+    if (!given) return '';
+    return String(given)
+      .trim()
+      .split(/\s+/)
+      .map(part => {
+        // 跳过 "van" / "de" 这类小品词？哈佛/APA 都不跳过，全转首字母即可
+        const cleaned = part.replace(/[.,]/g, '');
+        if (!cleaned) return '';
+        return cleaned.charAt(0).toUpperCase() + '.';
+      })
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  /** APA 7：1-20 作者全列，21+ 缩成"前 19 + … + 最后"。 */
+  function formatAPAAuthors(authors) {
+    if (!authors || !authors.length) return '';
+    const one = a => {
+      const family = a.family || a.display || '';
+      const init = givenToInitials(a.given);
+      return init ? `${family}, ${init}` : family;
+    };
+    const arr = authors.map(one);
+    if (arr.length === 1) return arr[0];
+    if (arr.length === 2) return `${arr[0]}, & ${arr[1]}`;
+    if (arr.length <= 20) return `${arr.slice(0, -1).join(', ')}, & ${arr[arr.length - 1]}`;
+    // 21+：前 19 + … + 最后
+    return `${arr.slice(0, 19).join(', ')}, … ${arr[arr.length - 1]}`;
+  }
+
+  /** MLA 9：单作者 "Last, First"；多作者 "Last, First, et al." */
+  function formatMLAAuthors(authors) {
+    if (!authors || !authors.length) return '';
+    const a = authors[0];
+    const family = a.family || a.display || '';
+    if (!a.given) return family;
+    if (authors.length === 1) return `${family}, ${a.given}`;
+    return `${family}, ${a.given}, et al.`;
+  }
+
+  /** Chicago 17（author-date）：1-10 作者全列，11+ 缩成"第 1 + … + 最后"。 */
+  function formatChicagoAuthors(authors) {
+    if (!authors || !authors.length) return '';
+    const one = a => {
+      const family = a.family || a.display || '';
+      if (!a.given) return family;
+      return `${family}, ${a.given}`;
+    };
+    const rest = a => {
+      const family = a.family || a.display || '';
+      return a.given ? `${a.given} ${family}` : family;
+    };
+    if (authors.length === 1) return one(authors[0]);
+    const first = one(authors[0]);
+    if (authors.length <= 10) {
+      const tail = authors.slice(1).map(rest);
+      if (tail.length === 1) return `${first}, and ${tail[0]}`;
+      return `${first}, ${tail.slice(0, -1).join(', ')}, and ${tail[tail.length - 1]}`;
+    }
+    // 11+：第 1 + … + 最后（其余省略）
+    return `${first}, … ${rest(authors[authors.length - 1])}`;
+  }
+
+  /** Harvard：1-3 作者全列，4+ 缩成"第 1 + … + 最后"。 */
+  function formatHarvardAuthors(authors) {
+    if (!authors || !authors.length) return '';
+    const one = a => {
+      const family = a.family || a.display || '';
+      const init = givenToInitials(a.given);
+      return init ? `${family}, ${init}` : family;
+    };
+    const arr = authors.map(one);
+    if (arr.length === 1) return arr[0];
+    if (arr.length === 2) return `${arr[0]} and ${arr[1]}`;
+    if (arr.length === 3) return `${arr[0]}, ${arr[1]} and ${arr[2]}`;
+    // 4+：第 1 + … + 最后
+    return `${arr[0]}, … ${arr[arr.length - 1]}`;
+  }
+
+  /** 判断是不是"书"（monograph/book/chapter）—— 没 container-title 兜底也算书 */
+  function isBookLike(meta) {
+    const t = (meta.type || '').toLowerCase();
+    if (t === 'monograph' || t === 'book' || t === 'book-chapter' || t === 'book-part' || t === 'book-set') return true;
+    // 没有 container-title、且有 publisher，大概率是书
+    if (!meta.container && meta.publisher) return true;
+    return false;
+  }
+
+  function escapeHTML(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  // 把 "123-145" 这种 en-dash 风格改成 "123–145"（仅 APA / Harvard 用）
+  function pageRange(s) {
+    if (!s) return '';
+    return String(s).replace(/-/g, '–');
+  }
+
+  /**
+   * APA 7
+   * Author, A. A. (Year). Title. Journal, Volume(Issue), Pages. https://doi.org/xxx
+   * Book:  Author, A. A. (Year). Title. Publisher. https://doi.org/xxx
+   */
+  function formatAPA(meta) {
+    const author = formatAPAAuthors(meta.authors);
+    const year = meta.year || 'n.d.';
+    const title = meta.title || '(无题名)';
+    const doi = meta.doi || '';
+    if (isBookLike(meta)) {
+      const pub = meta.publisher || '';
+      return `${author ? author + ' ' : ''}(${year}). ${escapeHTML(title)}.${pub ? ' ' + escapeHTML(pub) + '.' : ''}${doi ? ' ' + escapeHTML('https://doi.org/' + doi) : ''}`;
+    }
+    const journal = meta.container || '';
+    const vol = meta.volume || '';
+    const iss = meta.issue || '';
+    const page = pageRange(meta.page);
+    let tail = '';
+    if (journal) tail += ` <em>${escapeHTML(journal)}</em>`;
+    if (vol) tail += `, ${escapeHTML(vol)}`;
+    if (iss) tail += `(${escapeHTML(iss)})`;
+    if (page) tail += `, ${escapeHTML(page)}`;
+    return `${author ? author + ' ' : ''}(${year}). ${escapeHTML(title)}.${tail}.${doi ? ' ' + escapeHTML('https://doi.org/' + doi) : ''}`;
+  }
+
+  /**
+   * MLA 9
+   * Article: Last, First. "Title." Journal, vol. X, no. Y, Year, pp. PP–PP. doi:xxx
+   * Book:    Last, First. Title. Publisher, Year.
+   */
+  function formatMLA(meta) {
+    const author = formatMLAAuthors(meta.authors);
+    const year = meta.year || '';
+    const title = meta.title || '(无题名)';
+    const doi = meta.doi || '';
+    if (isBookLike(meta)) {
+      const pub = meta.publisher || '';
+      return `${author ? author.replace(/\.+\s*$/, '') + '. ' : ''}<em>${escapeHTML(title)}</em>.${pub ? ' ' + escapeHTML(pub) + ',' : ''}${year ? ' ' + year + '.' : ''}${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
+    }
+    const journal = meta.container || '';
+    const vol = meta.volume || '';
+    const iss = meta.issue || '';
+    const page = pageRange(meta.page);
+    const parts = [`<em>${escapeHTML(title)}</em>`];
+    if (journal) parts.push(`<em>${escapeHTML(journal)}</em>`);
+    let middle = '';
+    if (vol) middle += `vol. ${escapeHTML(vol)}`;
+    if (iss) middle += (middle ? ', ' : '') + `no. ${escapeHTML(iss)}`;
+    if (year) middle += (middle ? ', ' : '') + year;
+    if (page) middle += (middle ? ', ' : '') + `pp. ${escapeHTML(page)}`;
+    if (middle) parts.push(middle);
+    let out = '';
+    if (author) out = author.replace(/\.+\s*$/, '') + '. ';
+    out += `"${parts[0]}."`;
+    if (parts.length > 1) {
+      out += ' ' + parts.slice(1).join(', ');
+    }
+    if (!/[.!?]$/.test(out)) out += '.';
+    if (doi) out += ' doi:' + escapeHTML(doi) + '.';
+    return out;
+  }
+
+  /**
+   * Chicago 17（author-date）
+   * Article: Last, First. Year. "Title." Journal Volume (Issue): Pages. https://doi.org/xxx.
+   * Book:    Last, First. Year. Title. Publisher.
+   */
+  function formatChicago(meta) {
+    const author = formatChicagoAuthors(meta.authors);
+    const year = meta.year || 'n.d.';
+    const title = meta.title || '(无题名)';
+    const doi = meta.doi || '';
+    if (isBookLike(meta)) {
+      const pub = meta.publisher || '';
+      return `${author ? author + '. ' : ''}${year}. <em>${escapeHTML(title)}</em>.${pub ? ' ' + escapeHTML(pub) + '.' : ''}`;
+    }
+    const journal = meta.container || '';
+    const vol = meta.volume || '';
+    const iss = meta.issue || '';
+    const page = pageRange(meta.page);
+    let mid = '';
+    if (journal) mid += ` <em>${escapeHTML(journal)}</em>`;
+    if (vol) mid += ` ${escapeHTML(vol)}`;
+    if (iss) mid += ` (${escapeHTML(iss)})`;
+    if (page) mid += `: ${escapeHTML(page)}`;
+    let out = `${author ? author + '. ' : ''}${year}. "${escapeHTML(title)}."${mid}.`;
+    if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+    return out;
+  }
+
+  /**
+   * Harvard
+   * Article: Last, F., Year. Title. Journal, Volume(Issue), pp. PP–PP. doi:xxx
+   * Book:    Last, F. (Year) Title. Publisher.
+   */
+  function formatHarvard(meta) {
+    const author = formatHarvardAuthors(meta.authors);
+    const year = meta.year || 'n.d.';
+    const title = meta.title || '(无题名)';
+    const doi = meta.doi || '';
+    if (isBookLike(meta)) {
+      const pub = meta.publisher || '';
+      return `${author ? author + ' ' : ''}(${year}) <em>${escapeHTML(title)}</em>.${pub ? ' ' + escapeHTML(pub) + '.' : ''}`;
+    }
+    const journal = meta.container || '';
+    const vol = meta.volume || '';
+    const iss = meta.issue || '';
+    const page = pageRange(meta.page);
+    let mid = '';
+    if (journal) mid += ` <em>${escapeHTML(journal)}</em>`;
+    if (vol) mid += `, ${escapeHTML(vol)}`;
+    if (iss) mid += `(${escapeHTML(iss)})`;
+    if (page) mid += `, pp. ${escapeHTML(page)}`;
+    return `${author ? author + ', ' : ''}${year}. ${escapeHTML(title)}.${mid}.${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
+  }
+
+  // ====================== DOM ======================
+  const $doiInput = document.getElementById('doiInput');
+  const $doiBtn = document.getElementById('doiLookupBtn');
+  const $doiStatus = document.getElementById('doiStatus');
+  const $citeCells = $$('.cite-cell .cite-cell__text');
+  const DOI_RE = /^10\.\d{4,9}\/\S+$/;
+
+  function setDoiStatus(text, kind) {
+    if (!$doiStatus) return;
+    $doiStatus.textContent = text;
+    $doiStatus.classList.remove('is-loading', 'is-error', 'is-ok');
+    if (kind) $doiStatus.classList.add('is-' + kind);
+  }
+
+  function renderCiteTable(meta) {
+    if (!$citeCells.length) return;
+    const four = [
+      formatAPA(meta),
+      formatMLA(meta),
+      formatChicago(meta),
+      formatHarvard(meta),
+    ];
+    four.forEach((html, i) => {
+      if ($citeCells[i]) $citeCells[i].innerHTML = html;
+    });
+  }
+
+  async function doDoiLookup() {
+    if (!$doiInput) return;
+    const raw = ($doiInput.value || '').trim();
+    if (!raw) {
+      setDoiStatus('请先粘贴一个 DOI', 'error');
+      showToast('请先粘贴一个 DOI');
+      $doiInput.focus();
+      return;
+    }
+    if (!DOI_RE.test(raw)) {
+      setDoiStatus('DOI 格式不对，应是 10.xxxx/... 形式', 'error');
+      showToast('DOI 格式不对，应是 10.xxxx/... 形式');
+      $doiInput.focus();
+      return;
+    }
+
+    $doiBtn.disabled = true;
+    setDoiStatus('正在解析…', 'loading');
+    try {
+      const res = await fetch('/doi-lookup?doi=' + encodeURIComponent(raw));
+      let body = null;
+      try { body = await res.json(); } catch (_) { body = null; }
+      if (!res.ok || !body || !body.ok) {
+        const err = (body && body.error) || `HTTP ${res.status}`;
+        setDoiStatus(err, 'error');
+        showToast(err);
+        return;
+      }
+      renderCiteTable(body.data);
+      const authorLabel = (body.data.authors && body.data.authors[0] && (body.data.authors[0].family || body.data.authors[0].display)) || '佚名';
+      setDoiStatus(`✓ 已生成 · ${authorLabel} (${body.data.year || 'n.d.'})`, 'ok');
+      showToast('已生成 4 种引用格式');
+    } catch (e) {
+      const msg = 'DOI 解析失败：网络错误';
+      setDoiStatus(msg, 'error');
+      showToast(msg);
+    } finally {
+      $doiBtn.disabled = false;
+    }
+  }
+
+  if ($doiBtn) $doiBtn.addEventListener('click', doDoiLookup);
+  if ($doiInput) {
+    $doiInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        doDoiLookup();
+      }
+    });
+  }
+  // 示例 DOI 链接：点一下自动填
+  $$('.doi-box__sample').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      if (!$doiInput) return;
+      $doiInput.value = a.dataset.doi || '';
+      $doiInput.focus();
+      doDoiLookup();
+    });
+  });
+
   /* ====================== Citation 复制 ====================== */
 
   $$('.cite-cell').forEach(cell => {

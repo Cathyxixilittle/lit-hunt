@@ -6,7 +6,7 @@
 /* —— 浮窗编辑按钮（FAB） —— */
 .edit-fab {
   position: fixed;
-  top: 80px;
+  top: 88px;
   right: 24px;
   z-index: 200;
   display: inline-flex;
@@ -78,7 +78,7 @@ body.edit-mode .edit-selected {
 /* —— 编辑面板 —— */
 .edit-panel {
   position: fixed;
-  top: 130px;
+  top: 142px;
   right: 24px;
   width: 360px;
   max-height: calc(100vh - 170px);

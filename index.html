@@ -190,6 +190,32 @@
           <p class="panel__lead">提供同一文献的四种主流引用格式。点击任意格式即可复制至剪贴板。</p>
         </div>
 
+        <!-- DOI 输入：粘贴 DOI 自动调 Crossref 生成下方 4 种引用 -->
+        <div class="doi-box" id="doiBox">
+          <div class="doi-box__row">
+            <input
+              type="text"
+              id="doiInput"
+              class="doi-box__input"
+              placeholder="粘贴 DOI，如 10.1038/s41586-020-2649-2"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="btn btn--primary doi-box__btn" id="doiLookupBtn" type="button">
+              生成
+            </button>
+          </div>
+          <div class="doi-box__meta">
+            <span class="doi-box__hint">
+              试试：
+              <a href="#" class="doi-box__sample" data-doi="10.1038/s41586-020-2649-2">NumPy 论文（Nature 2020）</a>
+              ·
+              <a href="#" class="doi-box__sample" data-doi="10.1017/9781009325844">IPCC 气候报告</a>
+            </span>
+            <span class="doi-box__status" id="doiStatus">输入 DOI 生成你自己的引用</span>
+          </div>
+        </div>
+
         <div class="cite-table" role="table" aria-label="引用样式对照">
           <div class="cite-row cite-row--head" role="row">
             <div role="columnheader">APA 7</div>
@@ -219,7 +245,8 @@
 
         <p class="cite-note">
           <span class="cite-note__mark">i</span>
-          元数据 → 引用格式自动生成（v0.3 上线）。当前先提供示例对照。
+          数据源：<a href="https://www.crossref.org/" target="_blank" rel="noopener">Crossref</a>（CC0） · 粘贴 DOI 即可生成。
+          4 种格式由前端拼字符串，结果可能与出版社官网排版略有差异，建议提交前用 Zotero 校核。
         </p>
       </section>
 

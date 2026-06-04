@@ -9,6 +9,7 @@ Then open http://localhost:5173
 """
 
 import os
+import sys
 import http.server
 import socketserver
 import re
@@ -24,8 +25,14 @@ API_KEY = os.getenv("MINIMAX_API_KEY", "")
 PLACEHOLDER = "MINIMAX_API_KEY_PLACEHOLDER"
 ZOTERO_USER_ID = os.getenv("ZOTERO_USER_ID", "")
 ZOTERO_API_KEY = os.getenv("ZOTERO_API_KEY", "")
+# Crossref "polite" User-Agent 用的邮箱（Crossref 推荐设 polite email，
+# 放进 UA 的 mailto 字段，方便它们遇到滥用时联系）
+# 默认就是 chenyu 的 gmail，无需在 .env 里改
+CROSSREF_POLITE_EMAIL = os.getenv("CROSSREF_POLITE_EMAIL", "yc1376772@gmail.com")
 FETCH_SCRIPT = os.path.join(DIRECTORY, "fetch.py")
 PDF_OUT_DIR = os.path.join(DIRECTORY, "pdfs")
+# DOI 输入的正则（Crossref 实际格式：10.XXXX/anything）
+_DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 
 
 class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
@@ -88,6 +95,15 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
         # Zotero add paper
         if path == "/zotero-add":
             self.handle_zotero_add()
+            return
+
+        # Crossref DOI 解析（"引用格式速查"页用）
+        if path == "/doi-lookup":
+            doi = urllib.parse.parse_qs(parsed.query).get("doi", [None])[0]
+            if not doi:
+                self.send_json({"ok": False, "error": "缺少 doi 参数"})
+                return
+            self.handle_doi_lookup(doi.strip())
             return
 
         # script.js now has key hardcoded; serve as-is
@@ -379,6 +395,99 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
+
+    def handle_doi_lookup(self, doi):
+        """用 Crossref 解析 DOI，提取出 4 种引用格式需要的元数据。
+
+        失败策略：绝不把 Python 异常 str 漏给前端。
+        """
+        if not _DOI_RE.match(doi):
+            self.send_json({"ok": False, "error": "DOI 格式不对，应是 10.xxxx/... 形式"})
+            return
+
+        url = f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='/')}"
+        ua = f"lit-hunt/0.5 (mailto:{CROSSREF_POLITE_EMAIL})"
+        try:
+            req = urllib.request.Request(url, headers={
+                "Accept": "application/json",
+                "User-Agent": ua,
+            })
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            # 404 = DOI 不在 Crossref 里
+            if e.code == 404:
+                self.send_json({"ok": False, "error": "DOI 解析失败：Crossref 找不到这篇文献（DOI 不存在或未登记）"})
+            else:
+                self.send_json({"ok": False, "error": f"DOI 解析失败：Crossref 返回 HTTP {e.code}"})
+            return
+        except urllib.error.URLError as e:
+            self.send_json({"ok": False, "error": f"DOI 解析失败：连不上 Crossref（{e.reason}）"})
+            return
+        except (json.JSONDecodeError, TimeoutError) as e:
+            self.send_json({"ok": False, "error": f"DOI 解析失败：返回数据无法解析"})
+            return
+        except Exception as e:
+            # 兜底：绝不把 Python 异常字符串透出去
+            print(f"[handle_doi_lookup] unexpected error: {e}", flush=True)
+            self.send_json({"ok": False, "error": "DOI 解析失败：服务暂时不可用，请稍后重试"})
+            return
+
+        msg = payload.get("message") if isinstance(payload, dict) else None
+        if not isinstance(msg, dict):
+            self.send_json({"ok": False, "error": "DOI 解析失败：Crossref 返回结构异常"})
+            return
+
+        # 提取字段
+        authors_raw = msg.get("author") or []
+        title_list = msg.get("title") or []
+        container_list = msg.get("container-title") or []
+        issued = msg.get("issued") or msg.get("published-print") or msg.get("published-online") or {}
+        date_parts = (issued.get("date-parts") or [[None]])[0]
+
+        # 提取规范化作者：{family, given, display}，兼容各种 fallback
+        authors = []
+        for a in authors_raw:
+            if not isinstance(a, dict):
+                continue
+            family = (a.get("family") or "").strip()
+            given = (a.get("given") or "").strip()
+            display = a.get("display_name") or a.get("name") or ""
+            if not display and family:
+                display = f"{family}, {given}".strip(", ")
+            authors.append({
+                "family": family,
+                "given": given,
+                "display": display.strip(),
+            })
+
+        data = {
+            "doi": msg.get("DOI") or doi,
+            "title": (title_list[0] if title_list else "").strip(),
+            "authors": authors,
+            "year": date_parts[0] if date_parts and date_parts[0] else None,
+            "container": (container_list[0] if container_list else "").strip(),
+            "volume": msg.get("volume") or "",
+            "issue": msg.get("issue") or "",
+            "page": msg.get("page") or "",
+            "publisher": msg.get("publisher") or "",
+            "type": msg.get("type") or "",
+            "url": msg.get("URL") or f"https://doi.org/{doi}",
+        }
+        self.send_json({"ok": True, "data": data})
+
+    def log_message(self, format, *args):
+        """覆盖默认 access log：用 print 写 stdout，方便跟其它 print 走同一份 server.log。"""
+        try:
+            sys.stderr.write(
+                "%s - - [%s] %s\n" %
+                (self.address_string(),
+                 self.log_date_time_string(),
+                 format % args)
+            )
+            sys.stderr.flush()
+        except Exception:
+            pass
 
     def handle_s2_proxy(self):
         """代理 Semantic Scholar 请求，绕过浏览器 CORS 限制。
