@@ -43,10 +43,14 @@
         </a>
       </nav>
       <div class="topbar__actions">
+        <button class="topbar__hamburger" id="toggleSidebar" type="button" title="切换侧栏" aria-label="切换侧栏">☰</button>
         <a class="toplink" href="https://github.com/Cathyxixilittle/lit-hunt" target="_blank" rel="noopener">GitHub ↗</a>
+        <button class="topbar__settings" id="openSettings" type="button" title="设置">⚙</button>
       </div>
     </div>
   </header>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
 
   <div class="layout">
 
@@ -113,6 +117,29 @@
               <button type="button" class="chip" data-year="any">不限</button>
               <button type="button" class="chip is-on" data-year="5y">近 5 年</button>
               <button type="button" class="chip" data-year="10y">近 10 年</button>
+              <button type="button" class="chip" data-year="20y">近 20 年</button>
+            </div>
+          </div>
+
+          <div class="searchbox__row searchbox__row--meta">
+            <div class="searchbox__chips">
+              <span class="searchbox__chip-label">类型：</span>
+              <button type="button" class="chip is-on" data-type="any">不限</button>
+              <button type="button" class="chip" data-type="review">综述</button>
+              <button type="button" class="chip" data-type="article">实证</button>
+              <button type="button" class="chip" data-type="foundational">奠基文献</button>
+            </div>
+          </div>
+
+          <div class="searchbox__row">
+            <label class="searchbox__label" for="scholars">代表学者</label>
+            <div class="searchbox__field">
+              <input
+                type="text"
+                id="scholars"
+                class="searchbox__input"
+                placeholder="选填：输入代表学者姓名，如 Arturo Escobar（多个人用逗号分隔）"
+              />
             </div>
           </div>
 
@@ -125,7 +152,7 @@
               <span class="ai-thinking__dot"></span>
               <span class="ai-thinking__text">MiniMax 正在分析…</span>
             </div>
-            <button class="btn btn--primary" type="submit" id="searchBtn">
+            <button class="btn btn--primary" type="button" id="searchBtn">
               <span>开始检索</span>
               <span class="btn__kbd">⌘ ↵</span>
             </button>
@@ -276,7 +303,52 @@
     </footer>
   </aside>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20250604j" defer></script>
+
+  <!-- ========== SETTINGS MODAL ========== -->
+  <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <div class="modal">
+      <header class="modal__head">
+        <h2 class="modal__title" id="settingsTitle">设置</h2>
+        <button class="modal__close" id="closeSettings" type="button" aria-label="关闭">✕</button>
+      </header>
+      <div class="modal__body">
+        <div class="settings-group">
+          <h3 class="settings-group__title">Zotero 同步</h3>
+          <p class="settings-hint">
+            在 <a href="https://www.zotero.org/settings/keys" target="_blank" rel="noopener">zotero.org/settings/keys</a> 生成 API Key，<br/>
+            在 <a href="https://www.zotero.org/settings" target="_blank" rel="noopener">zotero.org/settings</a> 底部找到你的 User ID。
+          </p>
+          <div class="settings-field">
+            <label for="zoteroUserId">Zotero User ID</label>
+            <input id="zoteroUserId" type="text" placeholder="例如：1234567" autocomplete="off" />
+          </div>
+          <div class="settings-field">
+            <label for="zoteroApiKey">Zotero API Key</label>
+            <input id="zoteroApiKey" type="password" placeholder="例如：xxxxxxxxxxxxxxxx" autocomplete="off" />
+          </div>
+          <div class="settings-field">
+            <label for="zoteroLibraryType">同步到</label>
+            <select id="zoteroLibraryType">
+              <option value="user">个人文献库</option>
+              <option value="group">小组文献库</option>
+            </select>
+          </div>
+          <div class="settings-field" id="zoteroGroupIdField" style="display:none">
+            <label for="zoteroGroupId">Group ID</label>
+            <input id="zoteroGroupId" type="text" placeholder="例如：123456" autocomplete="off" />
+          </div>
+          <div class="settings-test">
+            <a class="btn--test" id="testZotero" href="#" target="_blank">测试连接</a>
+            <span class="settings-test__result" id="zoteroTestResult"></span>
+          </div>
+        </div>
+      </div>
+      <footer class="modal__foot">
+        <button class="modal__save" id="saveSettings" type="button">保存</button>
+      </footer>
+    </div>
+  </div>
   <script src="edit.js" defer></script>
 </body>
 </html>
