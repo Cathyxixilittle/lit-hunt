@@ -1926,6 +1926,44 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
   const $citeCells = $$('.cite-cell .cite-cell__text');
   const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 
+  // 把用户粘贴的 DOI / 链接 / arXiv ID 归一化成 DOI 字符串。
+  // 返回 {doi} / {url} / {error}，调用方按需传到后端。
+  function parseInputToDoi(raw) {
+    const s = (raw || '').trim();
+    if (!s) return { error: '请先粘贴一个 DOI 或论文链接' };
+
+    // 已经是标准 DOI
+    if (DOI_RE.test(s)) return { doi: s };
+
+    // 去除常见包装：https:// 前缀、dx. 前缀、trailing slash、空格
+    const cleaned = s.replace(/^https?:\/\//i, '').replace(/^dx\./i, '').replace(/\/+$/, '').trim();
+
+    // doi.org/<doi> 形式
+    let m = cleaned.match(/^doi\.org\/(10\.\d{4,9}\/\S+)/i);
+    if (m) return { doi: m[1] };
+
+    // URL 路径里含 /doi/<doi>/...
+    m = cleaned.match(/\/doi\/(10\.\d{4,9}\/[^?#\s]+)/i);
+    if (m) return { doi: m[1] };
+
+    // arXiv 链接或纯 arXiv id
+    // https://arxiv.org/abs/2106.09685  /  arxiv.org/pdf/2106.09685v2  /  arXiv:2106.09685
+    m = cleaned.match(/arxiv\.org\/(?:abs|pdf)\/([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?/i);
+    if (m) return { doi: '10.48550/arXiv.' + m[1] };
+    m = cleaned.match(/^arxiv:\s*([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?/i);
+    if (m) return { doi: '10.48550/arXiv.' + m[1] };
+    // 老式 arxiv id（无版本号）
+    m = cleaned.match(/arxiv\.org\/(?:abs|pdf)\/([a-z\-]+\/\d{7})(?:v\d+)?/i);
+    if (m) return { doi: '10.48550/arXiv.' + m[1] };
+
+    // 看上去是 URL 但客户端认不出 → 让服务器去抓页面找 citation_doi
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^(www\.)?[a-z0-9-]+(\.[a-z]{2,})/i.test(s)) {
+      return { url: s };
+    }
+
+    return { error: '无法识别这个内容。请粘贴 DOI（如 10.xxxx/...）、arXiv 链接、或论文详情页 URL' };
+  }
+
   function setDoiStatus(text, kind) {
     if (!$doiStatus) return;
     $doiStatus.textContent = text;
@@ -1949,23 +1987,21 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
   async function doDoiLookup() {
     if (!$doiInput) return;
     const raw = ($doiInput.value || '').trim();
-    if (!raw) {
-      setDoiStatus('请先粘贴一个 DOI', 'error');
-      showToast('请先粘贴一个 DOI');
-      $doiInput.focus();
-      return;
-    }
-    if (!DOI_RE.test(raw)) {
-      setDoiStatus('DOI 格式不对，应是 10.xxxx/... 形式', 'error');
-      showToast('DOI 格式不对，应是 10.xxxx/... 形式');
+    const parsed = parseInputToDoi(raw);
+    if (parsed.error) {
+      setDoiStatus(parsed.error, 'error');
+      showToast(parsed.error);
       $doiInput.focus();
       return;
     }
 
     $doiBtn.disabled = true;
-    setDoiStatus('正在解析…', 'loading');
+    setDoiStatus(parsed.url ? '正在抓取页面找 DOI…' : '正在解析…', 'loading');
     try {
-      const res = await fetch('/doi-lookup?doi=' + encodeURIComponent(raw));
+      const qs = parsed.doi
+        ? 'doi=' + encodeURIComponent(parsed.doi)
+        : 'url=' + encodeURIComponent(parsed.url);
+      const res = await fetch('/doi-lookup?' + qs);
       let body = null;
       try { body = await res.json(); } catch (_) { body = null; }
       if (!res.ok || !body || !body.ok) {
@@ -1979,6 +2015,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       setDoiStatus(`✓ 已生成 · ${authorLabel} (${body.data.year || 'n.d.'})`, 'ok');
       showToast('已生成 4 种引用格式');
     } catch (e) {
+      console.error('[doi-lookup] network error:', e);
       const msg = 'DOI 解析失败：网络错误';
       setDoiStatus(msg, 'error');
       showToast(msg);
@@ -1996,16 +2033,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       }
     });
   }
-  // 示例 DOI 链接：点一下自动填
-  $$('.doi-box__sample').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      if (!$doiInput) return;
-      $doiInput.value = a.dataset.doi || '';
-      $doiInput.focus();
-      doDoiLookup();
-    });
-  });
+  // （已移除 .doi-box__sample 示例链接的点击处理）
 
   /* ====================== Citation 复制 ====================== */
 

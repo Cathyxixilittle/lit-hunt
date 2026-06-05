@@ -99,11 +99,15 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
 
         # Crossref DOI 解析（"引用格式速查"页用）
         if path == "/doi-lookup":
-            doi = urllib.parse.parse_qs(parsed.query).get("doi", [None])[0]
-            if not doi:
-                self.send_json({"ok": False, "error": "缺少 doi 参数"})
-                return
-            self.handle_doi_lookup(doi.strip())
+            qs = urllib.parse.parse_qs(parsed.query)
+            doi = (qs.get("doi", [None]) or [None])[0]
+            url = (qs.get("url", [None]) or [None])[0]
+            if doi:
+                self.handle_doi_lookup(doi.strip())
+            elif url:
+                self.handle_url_to_doi(url.strip())
+            else:
+                self.send_json({"ok": False, "error": "缺少 doi 或 url 参数"})
             return
 
         # script.js now has key hardcoded; serve as-is
@@ -396,6 +400,184 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def handle_url_to_doi(self, url):
+        """用户贴了 URL 但客户端没解析出 DOI → 抓页面找 citation_doi meta 标签。
+
+        成功：从页面 <meta name="citation_doi"> 或 <meta name="DC.identifier"> 拿到 DOI，
+        转发到 handle_doi_lookup。
+        失败：返回友好错误（超时 / 找不到 / 非 HTML），不泄漏 Python 异常字符串。
+        """
+        if not (url.startswith("http://") or url.startswith("https://")):
+            self.send_json({"ok": False, "error": "请粘贴以 http:// 或 https:// 开头的完整链接"})
+            return
+
+        ua = f"lit-hunt/0.5 (mailto:{CROSSREF_POLITE_EMAIL})"
+        browser_ua = (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+        try:
+            # 出版社反爬严，优先用浏览器 UA；保留 polite UA 备用
+            req = urllib.request.Request(url, headers={
+                "User-Agent": browser_ua,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+            # 抓 1MB 足够解析 meta；超时 8s
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                ctype = (resp.headers.get("Content-Type") or "").lower()
+                if "html" not in ctype:
+                    self.send_json({"ok": False, "error": "链接不是 HTML 页面，无法自动识别 DOI"})
+                    return
+                raw = resp.read(1024 * 1024).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as e:
+            self.send_json({"ok": False, "error": f"抓页面失败：HTTP {e.code}"})
+            return
+        except urllib.error.URLError as e:
+            reason = getattr(e, "reason", "")
+            self.send_json({"ok": False, "error": f"抓页面失败：连不上（{reason}）"})
+            return
+        except TimeoutError:
+            self.send_json({"ok": False, "error": "抓页面超时（8s），请直接复制 DOI"})
+            return
+        except Exception as e:
+            print(f"[handle_url_to_doi] unexpected error: {e}", flush=True)
+            self.send_json({"ok": False, "error": "抓页面失败：服务暂时不可用"})
+            return
+
+        # 找 citation_doi（最常见）；fallback 到 DC.identifier（schema.org/Highwire 风格）
+        doi = None
+        # 不区分大小写匹配 content=...；不依赖属性顺序
+        m = re.search(
+            r"""<meta\s+(?:[^>]*?\s+)?name\s*=\s*['"]citation_doi['"][^>]*?content\s*=\s*['"]([^'"]+)['"]""",
+            raw, re.IGNORECASE,
+        )
+        if not m:
+            m = re.search(
+                r"""<meta\s+(?:[^>]*?\s+)?content\s*=\s*['"]([^'"]+)['"][^>]*?name\s*=\s*['"]citation_doi['"]""",
+                raw, re.IGNORECASE,
+            )
+        if m:
+            doi = m.group(1).strip()
+
+        if not doi:
+            # DC.Identifier / dc.identifier；常见形式 doi:10.xxx 或纯 10.xxx
+            m = re.search(
+                r"""<meta\s+(?:[^>]*?\s+)?name\s*=\s*['"]DC\.identifier['"][^>]*?content\s*=\s*['"]([^'"]+)['"]""",
+                raw, re.IGNORECASE,
+            )
+            if m:
+                candidate = m.group(1).strip()
+                # 去掉 doi: 前缀
+                candidate = re.sub(r"^doi:\s*", "", candidate, flags=re.IGNORECASE)
+                if _DOI_RE.match(candidate):
+                    doi = candidate
+
+        if not doi:
+            # arXiv 兜底：abs 页面没 citation_doi，但有 citation_title/author/date
+            arxiv_m = re.search(r"arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5}(?:v\d+)?|[a-z\-]+/\d{7}(?:v\d+)?)", url, re.IGNORECASE)
+            if arxiv_m:
+                self.handle_arxiv_lookup(arxiv_m.group(1))
+                return
+            self.send_json({"ok": False, "error": "这个页面没有 meta 标注 DOI，请直接复制 DOI 粘贴进来"})
+            return
+
+        # 拿到 DOI，转交 handle_doi_lookup
+        print(f"[handle_url_to_doi] resolved {url} -> {doi}", flush=True)
+        self.handle_doi_lookup(doi)
+
+    def handle_arxiv_lookup(self, arxiv_id):
+        """arXiv DOI 在 Crossref 里不一定有 → 抓 abs 页面，从 citation_* meta 拼元数据。
+
+        arxiv_id: 形如 "2106.09685" 或 "cs/0102034"（去掉 v1 后缀）
+        """
+        url = f"https://arxiv.org/abs/{arxiv_id}"
+        browser_ua = (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": browser_ua,
+                "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                ctype = (resp.headers.get("Content-Type") or "").lower()
+                if "html" not in ctype:
+                    self.send_json({"ok": False, "error": "arXiv 页面不是 HTML"})
+                    return
+                html = resp.read(1024 * 1024).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as e:
+            self.send_json({"ok": False, "error": f"抓 arXiv 页面失败：HTTP {e.code}"})
+            return
+        except urllib.error.URLError as e:
+            self.send_json({"ok": False, "error": f"抓 arXiv 页面失败：连不上（{e.reason}）"})
+            return
+        except TimeoutError:
+            self.send_json({"ok": False, "error": "抓 arXiv 页面超时"})
+            return
+        except Exception as e:
+            print(f"[handle_arxiv_lookup] unexpected error: {e}", flush=True)
+            self.send_json({"ok": False, "error": "抓 arXiv 页面失败：服务暂时不可用"})
+            return
+
+        def find_meta(name):
+            """抓 <meta name='citation_X' content='...'> 第一个值。"""
+            m = re.search(
+                r"""<meta\s+(?:[^>]*?\s+)?name\s*=\s*['"]""" + re.escape(name) + r"""['"][^>]*?content\s*=\s*['"]([^'"]+)['"]""",
+                html, re.IGNORECASE,
+            )
+            if m:
+                return m.group(1).strip()
+            return None
+
+        title = find_meta("citation_title")
+        if not title:
+            self.send_json({"ok": False, "error": "arXiv 页面没找到 citation_title，请重试或手动填入 DOI"})
+            return
+
+        # authors
+        author_blocks = re.findall(
+            r"""<meta\s+(?:[^>]*?\s+)?name\s*=\s*['"]citation_author['"][^>]*?content\s*=\s*['"]([^'"]+)['"]""",
+            html, re.IGNORECASE,
+        )
+        authors = []
+        for ab in author_blocks:
+            # "Hu, Edward J." → family=Hu, given=Edward J.
+            ab = ab.strip()
+            if "," in ab:
+                family, _, given = ab.partition(",")
+                authors.append({"family": family.strip(), "given": given.strip()})
+            else:
+                # 没逗号：整体塞 family，前端会显示原文
+                authors.append({"family": ab, "given": ""})
+
+        # 日期：citation_date 形如 "2021/06/17" 或 "2021"
+        date_raw = find_meta("citation_date") or find_meta("citation_online_date") or ""
+        year_m = re.search(r"(\d{4})", date_raw)
+        year = int(year_m.group(1)) if year_m else None
+
+        # 期刊：标记为 arXiv
+        container = f"arXiv preprint arXiv:{arxiv_id}"
+
+        # 拼成与 Crossref 路径相同的 meta 结构
+        meta = {
+            "doi": f"10.48550/arXiv.{arxiv_id}",
+            "title": title,
+            "authors": authors,
+            "year": year,
+            "container": container,
+            "publisher": "arXiv",
+            "url": f"https://arxiv.org/abs/{arxiv_id}",
+            "type": "preprint",
+            "source": "arxiv_html",
+        }
+        print(f"[handle_arxiv_lookup] {arxiv_id} -> {len(authors)} authors, year={year}", flush=True)
+        self.send_json({"ok": True, "data": meta})
+
     def handle_doi_lookup(self, doi):
         """用 Crossref 解析 DOI，提取出 4 种引用格式需要的元数据。
 
@@ -417,6 +599,11 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
         except urllib.error.HTTPError as e:
             # 404 = DOI 不在 Crossref 里
             if e.code == 404:
+                # arXiv DOI 模式：Crossref 不一定有，但 arxiv.org abs 页面一定有 citation_* meta
+                arxiv_m = re.match(r"^10\.48550/arXiv\.(.+)$", doi, re.IGNORECASE)
+                if arxiv_m:
+                    self.handle_arxiv_lookup(arxiv_m.group(1))
+                    return
                 self.send_json({"ok": False, "error": "DOI 解析失败：Crossref 找不到这篇文献（DOI 不存在或未登记）"})
             else:
                 self.send_json({"ok": False, "error": f"DOI 解析失败：Crossref 返回 HTTP {e.code}"})

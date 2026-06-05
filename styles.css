@@ -939,15 +939,6 @@ h2.panel__title.edit-selected {
   color: var(--ink-3);
   letter-spacing: 0.02em;
 }
-.doi-box__hint { color: var(--ink-3); }
-.doi-box__hint a {
-  color: var(--ink-2);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: var(--line-2);
-  transition: text-decoration-color .12s ease;
-}
-.doi-box__hint a:hover { text-decoration-color: var(--ink-2); }
 .doi-box__status {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
