@@ -1766,13 +1766,19 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     return `${arr[0]}, … ${arr[arr.length - 1]}`;
   }
 
-  /** 判断是不是"书"（monograph/book/chapter）—— 没 container-title 兜底也算书 */
+  /** 判断是不是"书"（整本） */
   function isBookLike(meta) {
     const t = (meta.type || '').toLowerCase();
-    if (t === 'monograph' || t === 'book' || t === 'book-chapter' || t === 'book-part' || t === 'book-set') return true;
+    if (t === 'monograph' || t === 'book' || t === 'book-set') return true;
     // 没有 container-title、且有 publisher，大概率是书
     if (!meta.container && meta.publisher) return true;
     return false;
+  }
+
+  /** 判断是不是"书章节" —— container 是书名，title 是章节名，需要显示页码 */
+  function isChapterLike(meta) {
+    const t = (meta.type || '').toLowerCase();
+    return t === 'book-chapter' || t === 'book-part' || t === 'book-section';
   }
 
   function escapeHTML(s) {
@@ -1806,6 +1812,18 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
       return out;
     }
+    if (isChapterLike(meta)) {
+      const book = meta.container || '';
+      const page = pageRange(meta.page);
+      const pub = meta.publisher || '';
+      let out = (author ? author + ' ' : '') + `(${year}). ${escapeHTML(title)}.`;
+      if (book) out += ` In <em>${escapeHTML(book)}</em>`;
+      if (page) out += ` (pp. ${escapeHTML(page)})`;
+      out += '.';
+      if (pub) out += ' ' + escapeHTML(pub) + '.';
+      if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+      return out;
+    }
     const journal = meta.container || '';
     const vol = meta.volume || '';
     const iss = meta.issue || '';
@@ -1831,6 +1849,22 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     if (isBookLike(meta)) {
       const pub = meta.publisher || '';
       return `${author ? author.replace(/\.+\s*$/, '') + '. ' : ''}<em>${escapeHTML(title)}</em>.${pub ? ' ' + escapeHTML(pub) + ',' : ''}${year ? ' ' + year + '.' : ''}${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
+    }
+    if (isChapterLike(meta)) {
+      const book = meta.container || '';
+      const pub = meta.publisher || '';
+      const page = pageRange(meta.page);
+      let out = '';
+      if (author) out = author.replace(/\.+\s*$/, '') + '. ';
+      out += `"${escapeHTML(title)}."`;
+      if (book) out += ` <em>${escapeHTML(book)}</em>`;
+      const middle = [];
+      if (pub) middle.push(escapeHTML(pub));
+      if (year) middle.push(year);
+      if (page) middle.push(`pp. ${escapeHTML(page)}`);
+      if (middle.length) out += ', ' + middle.join(', ') + '.';
+      if (doi) out += ' doi:' + escapeHTML(doi) + '.';
+      return out;
     }
     const journal = meta.container || '';
     const vol = meta.volume || '';
@@ -1872,6 +1906,20 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
       return out;
     }
+    if (isChapterLike(meta)) {
+      const book = meta.container || '';
+      const page = pageRange(meta.page);
+      const pub = meta.publisher || '';
+      let out = '';
+      if (author) out = author.replace(/\.+\s*$/, '') + '. ';
+      out += `${year}. "${escapeHTML(title)}."`;
+      if (book) out += ` In <em>${escapeHTML(book)}</em>`;
+      if (page) out += `, ${escapeHTML(page)}`;
+      out += '.';
+      if (pub) out += ' ' + escapeHTML(pub) + '.';
+      if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+      return out;
+    }
     const journal = meta.container || '';
     const vol = meta.volume || '';
     const iss = meta.issue || '';
@@ -1905,6 +1953,18 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       let out = (author ? author + ' ' : '') + `(${year}) <em>${escapeHTML(title)}</em>.`;
       if (pub) out += ' ' + escapeHTML(pub) + '.';
       if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
+      return out;
+    }
+    if (isChapterLike(meta)) {
+      const book = meta.container || '';
+      const page = pageRange(meta.page);
+      const pub = meta.publisher || '';
+      let out = (author ? author + ' ' : '') + `(${year}) '${escapeHTML(title)}',`;
+      if (book) out += ` in: <em>${escapeHTML(book)}</em>`;
+      if (page) out += `, pp. ${escapeHTML(page)}`;
+      out += '.';
+      if (pub) out += ' ' + escapeHTML(pub) + '.';
+      if (doi) out += ' doi:' + escapeHTML(doi) + '.';
       return out;
     }
     const journal = meta.container || '';
@@ -1942,8 +2002,10 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     let m = cleaned.match(/^doi\.org\/(10\.\d{4,9}\/\S+)/i);
     if (m) return { doi: m[1] };
 
-    // URL 路径里含 /doi/<doi>/...
+    // URL 路径里含 /doi/<doi>/... 或 /chapter/<doi>（Springer 风格）
     m = cleaned.match(/\/doi\/(10\.\d{4,9}\/[^?#\s]+)/i);
+    if (m) return { doi: m[1] };
+    m = cleaned.match(/\/chapter\/(10\.\d{4,9}\/[^?#\s]+)/i);
     if (m) return { doi: m[1] };
 
     // arXiv 链接或纯 arXiv id
