@@ -648,10 +648,28 @@ class LitHuntHandler(http.server.SimpleHTTPRequestHandler):
                 "display": display.strip(),
             })
 
+        # 提取 editors（book-chapter 等类型用）：Crossref 'editor' 字段
+        editors_raw = msg.get("editor") or []
+        editors = []
+        for e in editors_raw:
+            if not isinstance(e, dict):
+                continue
+            family = (e.get("family") or "").strip()
+            given = (e.get("given") or "").strip()
+            display = e.get("name") or ""
+            if not display and family:
+                display = f"{family}, {given}".strip(", ")
+            editors.append({
+                "family": family,
+                "given": given,
+                "display": display.strip(),
+            })
+
         data = {
             "doi": msg.get("DOI") or doi,
             "title": (title_list[0] if title_list else "").strip(),
             "authors": authors,
+            "editors": editors,
             "year": date_parts[0] if date_parts and date_parts[0] else None,
             "container": (container_list[0] if container_list else "").strip(),
             "volume": msg.get("volume") or "",

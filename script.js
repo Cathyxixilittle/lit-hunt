@@ -1724,6 +1724,12 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     const family = a.family || a.display || '';
     if (!a.given) return family;
     if (authors.length === 1) return `${family}, ${a.given}`;
+    if (authors.length === 2) {
+      const b = authors[1];
+      const bFamily = b.family || b.display || '';
+      const bGiven = b.given || '';
+      return bGiven ? `${family}, ${a.given}, and ${bGiven} ${bFamily}` : `${family}, ${a.given}, and ${bFamily}`;
+    }
     return `${family}, ${a.given}, et al.`;
   }
 
@@ -1805,9 +1811,11 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     const year = meta.year || 'n.d.';
     const title = meta.title || '(无题名)';
     const doi = meta.doi || '';
+    // 作者末尾若不是 . 结尾，补一个句点（机构作者如 "Intergovernmental Panel on Climate Change (IPCC)" 需要补成 "(IPCC). (Year). ..."）
+    const authorNorm = author && !author.trim().endsWith('.') ? author + '.' : author;
     if (isBookLike(meta)) {
       const pub = meta.publisher || '';
-      let out = (author ? author + ' ' : '') + `(${year}). <em>${escapeHTML(title)}</em>.`;
+      let out = (authorNorm ? authorNorm + ' ' : '') + `(${year}). <em>${escapeHTML(title)}</em>.`;
       if (pub) out += ' ' + escapeHTML(pub) + '.';
       if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
       return out;
@@ -1816,8 +1824,15 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       const book = meta.container || '';
       const page = pageRange(meta.page);
       const pub = meta.publisher || '';
-      let out = (author ? author + ' ' : '') + `(${year}). ${escapeHTML(title)}.`;
-      if (book) out += ` In <em>${escapeHTML(book)}</em>`;
+      const editors = (meta.editors || []).map(e => e.family || e.display || '').filter(Boolean);
+      let out = (authorNorm ? authorNorm + ' ' : '') + `(${year}). ${escapeHTML(title)}.`;
+      if (book) {
+        if (editors.length) {
+          out += ` In ${escapeHTML(editors.join(' & '))} (Ed.), <em>${escapeHTML(book)}</em>`;
+        } else {
+          out += ` In <em>${escapeHTML(book)}</em>`;
+        }
+      }
       if (page) out += ` (pp. ${escapeHTML(page)})`;
       out += '.';
       if (pub) out += ' ' + escapeHTML(pub) + '.';
@@ -1830,10 +1845,11 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     const page = pageRange(meta.page);
     let tail = '';
     if (journal) tail += ` <em>${escapeHTML(journal)}</em>`;
-    if (vol) tail += `, ${escapeHTML(vol)}`;
+    // APA 7 规范：卷号斜体
+    if (vol) tail += `, <em>${escapeHTML(vol)}</em>`;
     if (iss) tail += `(${escapeHTML(iss)})`;
     if (page) tail += `, ${escapeHTML(page)}`;
-    return `${author ? author + ' ' : ''}(${year}). ${escapeHTML(title)}.${tail}.${doi ? ' ' + escapeHTML('https://doi.org/' + doi) : ''}`;
+    return `${authorNorm ? authorNorm + ' ' : ''}(${year}). ${escapeHTML(title)}.${tail}.${doi ? ' ' + escapeHTML('https://doi.org/' + doi) : ''}`;
   }
 
   /**
@@ -1841,6 +1857,11 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
    * Article: Last, First. "Title." Journal, vol. X, no. Y, Year, pp. PP–PP. doi:xxx
    * Book:    Last, First. Title. Publisher, Year.
    */
+  /** 标题末尾已有 . ? ! 时不再加句点（避免 ?." 双标点） */
+  function titlePunct(t) {
+    return /[.!?]$/.test(t) ? '' : '.';
+  }
+
   function formatMLA(meta) {
     const author = formatMLAAuthors(meta.authors);
     const year = meta.year || '';
@@ -1856,7 +1877,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       const page = pageRange(meta.page);
       let out = '';
       if (author) out = author.replace(/\.+\s*$/, '') + '. ';
-      out += `"${escapeHTML(title)}."`;
+      out += `"${escapeHTML(title)}${titlePunct(title)}"`;
       if (book) out += ` <em>${escapeHTML(book)}</em>`;
       const middle = [];
       if (pub) middle.push(escapeHTML(pub));
@@ -1880,7 +1901,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     if (middle) parts.push(middle);
     let out = '';
     if (author) out = author.replace(/\.+\s*$/, '') + '. ';
-    out += `"${parts[0]}."`;
+    out += `"${escapeHTML(title)}${titlePunct(title)}"`;
     if (parts.length > 1) {
       out += ' ' + parts.slice(1).join(', ');
     }
@@ -1912,7 +1933,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
       const pub = meta.publisher || '';
       let out = '';
       if (author) out = author.replace(/\.+\s*$/, '') + '. ';
-      out += `${year}. "${escapeHTML(title)}."`;
+      out += `${year}. "${escapeHTML(title)}${titlePunct(title)}"`;
       if (book) out += ` In <em>${escapeHTML(book)}</em>`;
       if (page) out += `, ${escapeHTML(page)}`;
       out += '.';
@@ -1933,7 +1954,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     if (author) {
       out = author.replace(/\.+\s*$/, '') + '. ';
     }
-    out += `${year}. "${escapeHTML(title)}."${mid}.`;
+    out += `${year}. "${escapeHTML(title)}${titlePunct(title)}"${mid}.`;
     if (doi) out += ' ' + escapeHTML('https://doi.org/' + doi) + '.';
     return out;
   }
@@ -1976,7 +1997,7 @@ foundational_works：必须返回 2-4 本真实存在的该领域奠基性著作
     if (vol) mid += `, ${escapeHTML(vol)}`;
     if (iss) mid += `(${escapeHTML(iss)})`;
     if (page) mid += `, pp. ${escapeHTML(page)}`;
-    return `${author ? author + ' ' : ''}${year}. ${escapeHTML(title)}.${mid}.${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
+    return `${author ? author + ' ' : ''}(${year}) ${escapeHTML(title)}.${mid}.${doi ? ' doi:' + escapeHTML(doi) + '.' : ''}`;
   }
 
   // ====================== DOM ======================
